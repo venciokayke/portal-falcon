@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ContractType {
+  CLT
+  HORISTA
+}
+
+enum WorkSchedule {
+  SCALE_12X36
+  FIXED_220
+  CUSTOM
+}
+
+enum StartParity {
+  PAR
+  IMPAR
+  NONE
+}
+
+enum RegistrationCompany {
+  FALCON_SERVICE
+  FALCON_MONITORAMENTO
+  NAO_REGISTRADO
+}
+
+model Employee {
+  id                   String       @id @default(uuid()) @db.Uuid
+  name                 String
+  isActive             Boolean      @default(true)
+  registrationCompany  RegistrationCompany @default(NAO_REGISTRADO)
+  contractType         ContractType
+  workSchedule         WorkSchedule
+  startParity          StartParity
+  hourlyRate           Decimal      @db.Decimal(10, 2)
+  pixKey               String?
+  pixType              String?
+  receivesVA           Boolean      @default(false)
+  receivesVT           Boolean      @default(false)
+  receivesIntervalHour Boolean      @default(false)
+
+  shifts               Shift[]
+  payrollReceipts      PayrollReceipt[]
+
+  @@map("employees")
+}
+
+model Shift {
+  id            String   @id @default(uuid()) @db.Uuid
+  employeeId    String   @db.Uuid
+  referenceDate DateTime @db.Date
+  location      String
+  checkIn       DateTime
+  checkOut      DateTime
+
+  employee      Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("shifts")
+}
+
+model PayrollReceipt {
+  id                   String   @id @default(uuid()) @db.Uuid
+  employeeId           String   @db.Uuid
+  month                Int
+  year                 Int
+  netSalaryAccounting  Decimal  @db.Decimal(10, 2)
+  extraHoursTotalValue Decimal  @db.Decimal(10, 2)
+  vaTotal              Decimal  @db.Decimal(10, 2)
+  vtTotal              Decimal  @db.Decimal(10, 2)
+  manualAdditions      Decimal  @db.Decimal(10, 2)
+  manualDeductions     Decimal  @db.Decimal(10, 2)
+  finalAmount          Decimal  @db.Decimal(10, 2)
+
+  employee             Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("payroll_receipts")
+}
