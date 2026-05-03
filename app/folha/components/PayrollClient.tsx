@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { getPayrollData, savePayrollReceipts } from "@/actions/payroll";
-import { Calendar, Save, ClipboardCopy, Loader2, Printer } from "lucide-react";
+import { Calendar, Save, Loader2, Printer } from "lucide-react";
 
 const MONTHS = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -38,36 +38,16 @@ export default function PayrollClient() {
   const handleChange = (employeeId: string, field: string, value: string) => {
     setRows(currentRows => currentRows.map(row => {
       if (row.employeeId !== employeeId) return row;
-
-      const newRow = { ...row, [field]: value };
-
-      // Se o usuário digitou algo numérico para faltas, rodamos a reatividade
-      if (field === 'absences') {
-        const numAbsences = Number(value) || 0;
-
-        if (row.receivesVA) {
-          // suggestedVA = (Projeção * 26.00) - (Faltas * 26.00)
-          newRow.vaTotal = Math.max(0, (row.expectedDaysNextMonth * 26.00) - (numAbsences * 26.00)).toFixed(2);
-        }
-        if (row.receivesVT) {
-          // suggestedVT = (Projeção * 8.60) - (Faltas * 8.60)
-          newRow.vtTotal = Math.max(0, (row.expectedDaysNextMonth * 8.60) - (numAbsences * 8.60)).toFixed(2);
-        }
-      }
-
-      return newRow;
+      return { ...row, [field]: value };
     }));
   };
 
   const calculateTotal = (row: any) => {
-    const net = Number(row.netSalaryAccounting) || 0;
-    const va = Number(row.vaTotal) || 0;
-    const vt = Number(row.vtTotal) || 0;
-    const extra = Number(row.extraHoursTotalValue) || 0;
-    const adds = Number(row.manualAdditions) || 0;
-    const deds = Number(row.manualDeductions) || 0;
-
-    return net + va + vt + extra + adds - deds;
+    const cc = Number(row.contraCheque) || 0;
+    const vt = Number(row.valeTransporte) || 0;
+    const extras = Number(row.valoresExtras) || 0;
+    const desc = Number(row.descontos) || 0;
+    return cc + vt + extras - desc;
   };
 
   const handleSave = async () => {
@@ -75,13 +55,12 @@ export default function PayrollClient() {
     try {
       const receiptsToSave = rows.map(r => ({
         ...r,
-        netSalaryAccounting: Number(r.netSalaryAccounting) || 0,
-        extraHoursTotalValue: Number(r.extraHoursTotalValue) || 0,
-        vaTotal: Number(r.vaTotal) || 0,
-        vtTotal: Number(r.vtTotal) || 0,
-        manualAdditions: Number(r.manualAdditions) || 0,
-        manualDeductions: Number(r.manualDeductions) || 0,
-        finalAmount: calculateTotal(r)
+        contraCheque: Number(r.contraCheque) || 0,
+        valeTransporte: Number(r.valeTransporte) || 0,
+        valoresExtras: Number(r.valoresExtras) || 0,
+        descontos: Number(r.descontos) || 0,
+        observacoes: r.observacoes || "",
+        total: calculateTotal(r)
       }));
 
       await savePayrollReceipts(month, year, receiptsToSave);
@@ -94,28 +73,169 @@ export default function PayrollClient() {
     }
   };
 
-  const exportPix = () => {
-    if (rows.length === 0) return alert("Nenhum dado para exportar.");
+  const grupoService = rows.filter(r => r.registrationCompany === 'FALCON_SERVICE');
+  const grupoMonitoramento = rows.filter(r => r.registrationCompany === 'FALCON_MONITORAMENTO');
+  const grupoNaoRegistrados = rows.filter(r => r.registrationCompany === 'NAO_REGISTRADO');
 
-    const lines = rows.map(r => {
-      const total = calculateTotal(r).toFixed(2);
-      const pix = r.pixKey ? `PIX: ${r.pixType} - ${r.pixKey}` : "SEM PIX CADASTRADO";
-      return `${r.name} | ${pix} | R$ ${total}`;
-    });
+  const renderTable = (title: string, groupRows: any[]) => {
+    if (groupRows.length === 0) return null;
 
-    const text = `FECHAMENTO - ${MONTHS[month]} ${year}\n\n` + lines.join("\n");
+    const totalAPagar = groupRows.reduce((acc, row) => acc + calculateTotal(row), 0);
+    const totalCC = groupRows.reduce((acc, row) => acc + (Number(row.contraCheque) || 0), 0);
+    const totalVT = groupRows.reduce((acc, row) => acc + (Number(row.valeTransporte) || 0), 0);
+    const totalExtras = groupRows.reduce((acc, row) => acc + (Number(row.valoresExtras) || 0), 0);
+    const totalDesc = groupRows.reduce((acc, row) => acc + (Number(row.descontos) || 0), 0);
 
-    navigator.clipboard.writeText(text).then(() => {
-      alert("Lista copiada para a área de transferência!");
-    }).catch(err => {
-      console.error("Falha ao copiar", err);
-      alert("Não foi possível copiar para a área de transferência.");
-    });
+    return (
+      <div className="mb-8 print:mb-4 print:break-inside-avoid">
+        <div className="overflow-x-auto border border-black print:border-black rounded-lg print:rounded-none">
+          <table className="w-full text-sm text-left border-collapse print:text-[10px]">
+            <thead>
+              {/* Título Amarelo */}
+              <tr>
+                <th colSpan={9} className="bg-yellow-400 text-black text-center font-bold py-2 border-b border-black uppercase print:border-black text-base print:text-xs">
+                  REALIZAR PAGAMENTO PELA {title}
+                </th>
+              </tr>
+              
+              {/* Linha de Totais (Sub-header) */}
+              <tr className="bg-gray-200 border-b border-black print:bg-gray-100 print:border-black">
+                <th colSpan={3} className="px-2 py-1.5 font-bold text-right border-r border-black print:border-black">
+                  VALORES TOTAIS:
+                </th>
+                <th className="px-2 py-1.5 font-bold text-right text-green-700 print:text-black border-r border-black print:border-black whitespace-nowrap">
+                  R$ {totalAPagar.toFixed(2)}
+                </th>
+                <th className="px-2 py-1.5 font-bold text-right border-r border-black print:border-black">
+                  {totalCC.toFixed(2)}
+                </th>
+                <th className="px-2 py-1.5 font-bold text-right border-r border-black print:border-black">
+                  {totalVT.toFixed(2)}
+                </th>
+                <th className="px-2 py-1.5 font-bold text-right border-r border-black print:border-black text-blue-700 print:text-black">
+                  {totalExtras.toFixed(2)}
+                </th>
+                <th className="px-2 py-1.5 font-bold text-right border-r border-black print:border-black text-red-700 print:text-black">
+                  {totalDesc.toFixed(2)}
+                </th>
+                <th className="px-2 py-1.5 border-black print:border-black"></th>
+              </tr>
+
+              {/* Cabeçalho de Colunas */}
+              <tr className="bg-white border-b border-black print:bg-white print:border-black text-xs uppercase tracking-tight">
+                <th className="px-2 py-1.5 font-semibold border-r border-black print:border-black min-w-[150px]">Funcionário</th>
+                <th className="px-2 py-1.5 font-semibold border-r border-black print:border-black w-20">Tipo</th>
+                <th className="px-2 py-1.5 font-semibold border-r border-black print:border-black w-32">PIX</th>
+                <th className="px-2 py-1.5 font-bold border-r border-black print:border-black w-24 bg-green-50 print:bg-transparent">Valor a Pagar</th>
+                <th className="px-2 py-1.5 font-semibold border-r border-black print:border-black w-20">Contra Cheque</th>
+                <th className="px-2 py-1.5 font-semibold border-r border-black print:border-black w-20">Vale Transporte</th>
+                <th className="px-2 py-1.5 font-semibold border-r border-black print:border-black w-20">Valores Extras</th>
+                <th className="px-2 py-1.5 font-semibold border-r border-black print:border-black w-20">Descontos</th>
+                <th className="px-2 py-1.5 font-semibold print:border-black w-40">Observações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-300 print:divide-black">
+              {groupRows.map((row) => {
+                const total = calculateTotal(row);
+
+                return (
+                  <tr key={row.employeeId} className="hover:bg-gray-50 transition-colors print:hover:bg-transparent bg-white">
+                    <td className="px-2 py-1 border-r border-black print:border-black font-medium text-gray-900 truncate max-w-[180px]">
+                      {row.name}
+                    </td>
+                    <td className="px-2 py-1 border-r border-black print:border-black text-xs truncate max-w-[80px]">
+                      {row.pixType || "-"}
+                    </td>
+                    <td className="px-2 py-1 border-r border-black print:border-black text-xs truncate max-w-[150px]">
+                      {row.pixKey || "-"}
+                    </td>
+                    <td className="px-2 py-1 border-r border-black print:border-black font-bold text-green-700 bg-green-50 print:bg-transparent print:text-black text-right whitespace-nowrap">
+                      R$ {total.toFixed(2)}
+                    </td>
+                    <td className="p-0 border-r border-black print:border-black">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={row.contraCheque}
+                        onChange={(e) => handleChange(row.employeeId, 'contraCheque', e.target.value)}
+                        className="w-full h-full px-2 py-1.5 bg-transparent border-0 focus:ring-2 focus:ring-inset focus:ring-blue-500 outline-none text-right print:p-1"
+                      />
+                    </td>
+                    <td className="p-0 border-r border-black print:border-black">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={row.valeTransporte}
+                        onChange={(e) => handleChange(row.employeeId, 'valeTransporte', e.target.value)}
+                        disabled={!row.receivesVT}
+                        className="w-full h-full px-2 py-1.5 bg-transparent border-0 focus:ring-2 focus:ring-inset focus:ring-blue-500 outline-none text-right disabled:bg-gray-100 disabled:text-gray-400 print:p-1 print:disabled:bg-transparent print:disabled:text-black"
+                      />
+                    </td>
+                    <td className="p-0 border-r border-black print:border-black">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={row.valoresExtras}
+                        onChange={(e) => handleChange(row.employeeId, 'valoresExtras', e.target.value)}
+                        className="w-full h-full px-2 py-1.5 bg-transparent border-0 focus:ring-2 focus:ring-inset focus:ring-blue-500 outline-none text-right text-blue-600 font-medium print:text-black print:p-1"
+                      />
+                    </td>
+                    <td className="p-0 border-r border-black print:border-black">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={row.descontos}
+                        onChange={(e) => handleChange(row.employeeId, 'descontos', e.target.value)}
+                        className="w-full h-full px-2 py-1.5 bg-transparent border-0 focus:ring-2 focus:ring-inset focus:ring-blue-500 outline-none text-right text-red-600 font-medium print:text-black print:p-1"
+                      />
+                    </td>
+                    <td className="p-0">
+                      <input
+                        type="text"
+                        value={row.observacoes}
+                        onChange={(e) => handleChange(row.employeeId, 'observacoes', e.target.value)}
+                        placeholder="Observação"
+                        className="w-full h-full px-2 py-1.5 bg-transparent border-0 focus:ring-2 focus:ring-inset focus:ring-blue-500 outline-none text-left print:p-1"
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className="flex flex-col">
-      <div className="p-6 border-b border-gray-200 bg-gray-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="flex flex-col bg-white min-h-screen">
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @media print {
+          @page { size: A4 landscape; margin: 5mm; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          /* Esconder botões na impressão */
+          .no-print { display: none !important; }
+          /* Inputs parecerão texto puro */
+          input { 
+            border: none !important; 
+            background: transparent !important; 
+            padding: 2px !important;
+            box-shadow: none !important; 
+            appearance: none;
+            -webkit-appearance: none;
+          }
+          /* Ocultar as setinhas chatas de inputs numéricos */
+          input[type=number]::-webkit-inner-spin-button, 
+          input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+          }
+        }
+      `}} />
+
+      <div className="p-6 border-b border-gray-200 bg-gray-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 no-print">
         <div className="flex items-center gap-3">
           <Calendar className="text-gray-500 h-5 w-5" />
           <select
@@ -139,18 +259,11 @@ export default function PayrollClient() {
 
         <div className="flex flex-wrap gap-3">
           <button
-            onClick={exportPix}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
-          >
-            <ClipboardCopy className="h-4 w-4" />
-            Exportar PIX
-          </button>
-          <button
-            onClick={() => { setTimeout(() => window.print(), 100); }}
+            onClick={() => window.print()}
             className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
           >
             <Printer className="h-4 w-4" />
-            Imprimir Holerites
+            Imprimir Planilha
           </button>
           <button
             onClick={handleSave}
@@ -158,214 +271,31 @@ export default function PayrollClient() {
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm disabled:opacity-50"
           >
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {isSaving ? "Salvando..." : "Salvar Folha"}
+            {isSaving ? "Salvando..." : "Salvar Fechamento"}
           </button>
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left border-collapse">
-          <thead className="bg-gray-100 border-b border-gray-200 text-gray-700">
-            <tr>
-              <th className="px-4 py-3 font-semibold min-w-[150px]">Funcionário</th>
-              <th className="px-2 py-3 font-semibold w-20">Faltas</th>
-              <th className="px-2 py-3 font-semibold w-28">C. Cheque (R$)</th>
-              <th className="px-2 py-3 font-semibold w-24">VA (R$)</th>
-              <th className="px-2 py-3 font-semibold w-24">VT (R$)</th>
-              <th className="px-2 py-3 font-semibold w-24">Extras (R$)</th>
-              <th className="px-2 py-3 font-semibold w-24">Diversos (R$)</th>
-              <th className="px-2 py-3 font-semibold w-24">Descontos (R$)</th>
-              <th className="px-4 py-3 font-bold text-gray-900 w-32 bg-green-50">TOTAL PIX</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {rows.map((row) => {
-              const total = calculateTotal(row);
-
-              return (
-                <tr key={row.employeeId} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <span className="font-medium text-gray-900">{row.name}</span>
-                    <div className="text-xs text-gray-500 mt-0.5 truncate max-w-[150px]">
-                      {row.pixKey ? `PIX: ${row.pixType}` : "Sem PIX"}
-                    </div>
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="number"
-                      min="0"
-                      value={row.absences}
-                      onChange={(e) => handleChange(row.employeeId, 'absences', e.target.value)}
-                      className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-center"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={row.netSalaryAccounting}
-                      onChange={(e) => handleChange(row.employeeId, 'netSalaryAccounting', e.target.value)}
-                      className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-right"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={row.vaTotal}
-                      onChange={(e) => handleChange(row.employeeId, 'vaTotal', e.target.value)}
-                      disabled={!row.receivesVA}
-                      className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-right disabled:bg-gray-100 disabled:text-gray-400"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={row.vtTotal}
-                      onChange={(e) => handleChange(row.employeeId, 'vtTotal', e.target.value)}
-                      disabled={!row.receivesVT}
-                      className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-right disabled:bg-gray-100 disabled:text-gray-400"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={row.extraHoursTotalValue}
-                      onChange={(e) => handleChange(row.employeeId, 'extraHoursTotalValue', e.target.value)}
-                      className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-right text-blue-600 font-medium"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={row.manualAdditions}
-                      onChange={(e) => handleChange(row.employeeId, 'manualAdditions', e.target.value)}
-                      className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-right text-green-600 font-medium"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={row.manualDeductions}
-                      onChange={(e) => handleChange(row.employeeId, 'manualDeductions', e.target.value)}
-                      className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-right text-red-600 font-medium"
-                    />
-                  </td>
-                  <td className="px-4 py-3 bg-green-50 font-bold text-green-700 text-right whitespace-nowrap">
-                    R$ {total.toFixed(2)}
-                  </td>
-                </tr>
-              );
-            })}
-
-            {rows.length === 0 && !isLoading && (
-              <tr>
-                <td colSpan={9} className="px-6 py-8 text-center text-gray-500 italic">
-                  Nenhum colaborador ativo encontrado para este período.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Print View: Holerites Individuais */}
-      <div className="hidden print:block bg-white text-black">
-        <style dangerouslySetInnerHTML={{
-          __html: `
-          @media print {
-            body { background-color: white !important; margin: 0 !important; padding: 0 !important; }
-            @page { margin: 1cm; size: A4; }
-          }
-        `}} />
-        {rows.map((row) => {
-          const total = calculateTotal(row);
-          return (
-            <div key={row.employeeId} className="print:break-after-page p-6 w-full max-w-[210mm] mx-auto box-border" style={{ pageBreakAfter: 'always' }}>
-              <div className="border-2 border-gray-900 rounded-lg p-6 h-auto">
-                <div className="text-center border-b-2 border-gray-900 pb-4 mb-4">
-                  <h2 className="text-xl font-bold uppercase tracking-widest">Recibo de Pagamento de Salário</h2>
-                  <p className="text-md font-semibold mt-1">Competência: {String(month + 1).padStart(2, '0')}/{year}</p>
-                </div>
-
-                <div className="flex justify-between mb-6 text-sm border-b border-gray-300 pb-4">
-                  <div>
-                    <p><strong className="uppercase">Colaborador:</strong> {row.name}</p>
-                    <p><strong>Faltas Registradas no Mês:</strong> {row.absences}</p>
-                  </div>
-                  <div className="text-right">
-                    <p><strong>Chave PIX p/ Pagamento:</strong> {row.pixKey ? row.pixKey : "Não cadastrada"}</p>
-                  </div>
-                </div>
-
-                <table className="w-full text-sm text-left mb-8 border-collapse border border-gray-900">
-                  <thead className="bg-gray-100 border-b border-gray-900">
-                    <tr>
-                      <th className="p-2 border-r border-gray-900">Descrição</th>
-                      <th className="p-2 border-r border-gray-900 w-32 text-right">Vencimentos (R$)</th>
-                      <th className="p-2 w-32 text-right">Descontos (R$)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-b border-gray-300">
-                      <td className="p-2 border-r border-gray-900">Contra Cheque Base</td>
-                      <td className="p-2 border-r border-gray-900 text-right">{Number(row.netSalaryAccounting).toFixed(2)}</td>
-                      <td className="p-2 text-right"></td>
-                    </tr>
-                    {Number(row.vaTotal) > 0 && (
-                      <tr className="border-b border-gray-300">
-                        <td className="p-2 border-r border-gray-900">Vale Alimentação (VA)</td>
-                        <td className="p-2 border-r border-gray-900 text-right">{Number(row.vaTotal).toFixed(2)}</td>
-                        <td className="p-2 text-right"></td>
-                      </tr>
-                    )}
-                    {Number(row.vtTotal) > 0 && (
-                      <tr className="border-b border-gray-300">
-                        <td className="p-2 border-r border-gray-900">Vale Transporte (VT)</td>
-                        <td className="p-2 border-r border-gray-900 text-right">{Number(row.vtTotal).toFixed(2)}</td>
-                        <td className="p-2 text-right"></td>
-                      </tr>
-                    )}
-                    {Number(row.extraHoursTotalValue) > 0 && (
-                      <tr className="border-b border-gray-300">
-                        <td className="p-2 border-r border-gray-900">Horas Extras</td>
-                        <td className="p-2 border-r border-gray-900 text-right">{Number(row.extraHoursTotalValue).toFixed(2)}</td>
-                        <td className="p-2 text-right"></td>
-                      </tr>
-                    )}
-                    {Number(row.manualAdditions) > 0 && (
-                      <tr className="border-b border-gray-300">
-                        <td className="p-2 border-r border-gray-900">Diversos (Acréscimos Manuais)</td>
-                        <td className="p-2 border-r border-gray-900 text-right">{Number(row.manualAdditions).toFixed(2)}</td>
-                        <td className="p-2 text-right"></td>
-                      </tr>
-                    )}
-                    {Number(row.manualDeductions) > 0 && (
-                      <tr className="border-b border-gray-300">
-                        <td className="p-2 border-r border-gray-900 text-red-600 font-medium">Descontos Diversos</td>
-                        <td className="p-2 border-r border-gray-900 text-right"></td>
-                        <td className="p-2 text-right text-red-600 font-medium">{Number(row.manualDeductions).toFixed(2)}</td>
-                      </tr>
-                    )}
-                    <tr className="bg-gray-100 font-bold border-t-2 border-gray-900">
-                      <td className="p-2 border-r border-gray-900 text-right uppercase">Líquido a Receber</td>
-                      <td colSpan={2} className="p-2 text-right text-lg">R$ {total.toFixed(2)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                <div className="mt-12 px-2">
-                  <p className="font-bold uppercase text-gray-800 mb-2">Observações (Controle Interno):</p>
-                  <div className="w-full h-32 border-2 border-dashed border-gray-400 rounded-lg"></div>
-                </div>
-              </div>
+      <div className="p-6">
+        {isLoading && rows.length === 0 ? (
+          <div className="flex justify-center items-center py-20 text-gray-500">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="text-center py-20 text-gray-500 italic border-2 border-dashed border-gray-200 rounded-xl">
+            Nenhum colaborador ativo encontrado para este período.
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="hidden print:block text-center mb-6">
+              <h1 className="text-2xl font-bold uppercase">Planilha de Fechamento Consolidada</h1>
+              <h2 className="text-lg font-semibold text-gray-600">Competência: {String(month + 1).padStart(2, '0')}/{year}</h2>
             </div>
-          );
-        })}
+            {renderTable("FALCON SERVICE", grupoService)}
+            {renderTable("FALCON MONITORAMENTO", grupoMonitoramento)}
+            {renderTable("NÃO REGISTRADOS", grupoNaoRegistrados)}
+          </div>
+        )}
       </div>
     </div>
   );

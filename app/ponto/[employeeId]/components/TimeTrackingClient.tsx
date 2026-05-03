@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { saveShifts, getShifts, deleteShift } from "@/actions/shift";
+import { calculatePayroll } from "@/utils/calculatePayroll";
 import { Calendar, MapPin, Plus, Trash2, Save, Clock, Printer } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -41,6 +42,23 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
     loadSavedShifts();
   }, [loadSavedShifts]);
 
+  const calculateShiftHours = (checkIn: string, checkOut: string) => {
+    if (!checkIn || !checkOut) return 0;
+    const [inH, inM] = checkIn.split(':').map(Number);
+    const [outH, outM] = checkOut.split(':').map(Number);
+    
+    let inMinutes = inH * 60 + inM;
+    let outMinutes = outH * 60 + outM;
+    
+    if (outMinutes < inMinutes) {
+      outMinutes += 24 * 60;
+    }
+    
+    return (outMinutes - inMinutes) / 60;
+  };
+
+  const totalWorkedHours = savedShiftsList.reduce((acc, shift) => acc + calculateShiftHours(shift.checkIn, shift.checkOut), 0);
+
   const daysCount = getDaysInMonth(selectedMonth, selectedYear);
   const daysArray = Array.from({ length: daysCount }, (_, i) => {
     const day = i + 1;
@@ -51,6 +69,58 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
       dayOfWeek: date.toLocaleDateString("pt-BR", { weekday: "short" }).replace('.', '')
     };
   });
+
+  // 1. Lógica do 'VALOR P/H' (Taxa Financeira)
+  const isCLT = employee.contractType === 'CLT';
+  const isPJFixo = employee.contractType === 'PJ_FIXO';
+  const isPJHorista = employee.contractType === 'PJ_HORISTA';
+  
+  let taxaHora = 0;
+  if (isPJFixo) {
+    taxaHora = 0;
+  } else {
+    taxaHora = Number(employee.hourlyRate) || 0;
+  }
+
+  // 2. Lógica de 'HORAS PREVISTAS' (Carga Horária Base)
+  let horasPrevistas = 0;
+  if (isCLT) {
+    if (employee.workSchedule === 'FIXED_220') {
+      horasPrevistas = 220;
+    } else if (employee.workSchedule === 'FIXED_180') {
+      horasPrevistas = 180;
+    } else if (employee.workSchedule === 'SCALE_12X36') {
+      let calcPrevistas = 0;
+      for (let d = 1; d <= daysCount; d++) {
+        const isPar = d % 2 === 0;
+        if (employee.startParity === 'PAR' && isPar) calcPrevistas += 12;
+        if (employee.startParity === 'IMPAR' && !isPar) calcPrevistas += 12;
+      }
+      horasPrevistas = calcPrevistas;
+    }
+  }
+
+  // 3. Lógica de 'SALDO' e 'TOTAL (R$)' (Fechamento)
+  let saldoHoras = 0;
+  let valorTotal = 0;
+
+  if (isPJFixo) {
+    // PJ FIXO ganha o salário integral, não ganha por hora
+    saldoHoras = totalWorkedHours;
+    valorTotal = Number(employee.baseSalary) || 0;
+  } else if (isPJHorista || employee.contractType === 'HORISTA') {
+    // HORISTA ou PJ_HORISTA ganha por hora trabalhada
+    saldoHoras = totalWorkedHours;
+    valorTotal = totalWorkedHours * taxaHora;
+  } else if (isCLT) {
+    // CLT ganha as horas a mais
+    saldoHoras = totalWorkedHours - horasPrevistas;
+    if (saldoHoras > 0) {
+      valorTotal = saldoHoras * taxaHora;
+    } else {
+      valorTotal = 0;
+    }
+  }
 
   const handleAddShift = (dateString: string) => {
     const currentDayShifts = shifts[dateString] || [];
@@ -125,10 +195,26 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print:shadow-none print:border-none print:rounded-none">
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @media print {
+          @page {
+            size: A4 landscape;
+            margin: 5mm;
+          }
+          body {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            zoom: 0.85;
+          }
+          table { page-break-inside: auto; }
+          tr { page-break-inside: avoid; page-break-after: auto; }
+        }
+      `}} />
+      <div className="flex flex-col bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print:shadow-none print:border-none print:rounded-none print:bg-transparent">
         
         {/* Cabeçalho de Impressão */}
-        <div className="hidden print:block text-center mb-6 border-b-2 border-black pb-2 mt-4">
+        <div className="hidden print:block text-center mb-4 border-b-2 border-black pb-2">
           <h2 className="text-xl font-bold uppercase tracking-widest text-black">Espelho de Conferência</h2>
           <p className="text-md mt-2 font-semibold text-black">
             {employee.name} - Mês: {MONTHS[selectedMonth]}/{selectedYear}
@@ -184,17 +270,18 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
           </div>
         </div>
 
-        {/* Tabela Principal (Visível e também base da impressão) */}
-        <div className="overflow-x-auto print:overflow-visible">
-          <table className="w-full text-sm text-left print:text-xs print:border-collapse print:border print:border-black">
-            <thead className="bg-gray-100 border-b border-gray-200 text-gray-700 print:bg-gray-100 print:text-black">
+        {/* Tabela Principal (Visível na web, oculta na impressão) */}
+        <div className="overflow-x-auto print:hidden">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-gray-100 border-b border-gray-200 text-gray-700">
               <tr>
-                <th className="px-6 py-4 font-semibold w-32 print:border print:border-black print:py-2">Data</th>
-                <th className="px-6 py-4 font-semibold print:border print:border-black print:py-2">Turnos (Local, Entrada, Saída)</th>
-                <th className="px-6 py-4 font-semibold text-right w-24 print:hidden">Ação</th>
+                <th className="px-6 py-4 font-semibold w-32">Data</th>
+                <th className="px-6 py-4 font-semibold">Turnos (Local, Entrada, Saída)</th>
+                <th className="px-6 py-4 font-semibold w-32 text-center">Horas Trab.</th>
+                <th className="px-6 py-4 font-semibold text-right w-24">Ação</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 print:divide-black">
+            <tbody className="divide-y divide-gray-200">
               {daysArray.map(({ day, dateString, dayOfWeek }) => {
                 const isWeekend = dayOfWeek.includes("sáb") || dayOfWeek.includes("dom");
                 const dayShifts = shifts[dateString] || [];
@@ -210,31 +297,31 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
                 // Para manter a grade completa de conferência igual à outra, deixaremos a linha com os espaços vazios.
 
                 return (
-                  <tr key={day} className={`transition-colors ${isWeekend ? 'bg-gray-50/80' : 'bg-white hover:bg-gray-50'} print:bg-white print:border-b print:border-black`}>
-                    <td className="px-6 py-4 border-r border-gray-100 align-top print:border-r print:border-black print:py-2 print:text-black">
+                  <tr key={day} className={`transition-colors ${isWeekend ? 'bg-gray-50/80' : 'bg-white hover:bg-gray-50'}`}>
+                    <td className="px-6 py-4 border-r border-gray-100 align-top">
                       <div className="flex flex-col">
-                        <span className="font-semibold text-gray-900 print:text-black">{String(day).padStart(2, '0')}/{String(selectedMonth + 1).padStart(2, '0')}</span>
-                        <span className={`text-xs mt-0.5 ${isWeekend ? 'text-blue-600 font-medium' : 'text-gray-500'} capitalize print:text-black print:font-normal`}>{dayOfWeek}</span>
+                        <span className="font-semibold text-gray-900">{String(day).padStart(2, '0')}/{String(selectedMonth + 1).padStart(2, '0')}</span>
+                        <span className={`text-xs mt-0.5 ${isWeekend ? 'text-blue-600 font-medium' : 'text-gray-500'} capitalize`}>{dayOfWeek}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 align-top print:border-r print:border-black print:py-2">
+                    <td className="px-6 py-4 align-top">
                       <div className="flex flex-col gap-3">
                         
                         {/* 1. Turnos Já Salvos (Histórico do dia) */}
                         {savedForDay.map((shift) => (
-                          <div key={shift.id} className="flex flex-col lg:flex-row gap-3 items-start lg:items-center bg-green-50/50 p-3 rounded-lg border border-green-200 shadow-sm border-l-4 border-l-green-500 print:bg-transparent print:border-none print:shadow-none print:p-0">
+                          <div key={shift.id} className="flex flex-col lg:flex-row gap-3 items-start lg:items-center bg-green-50/50 p-3 rounded-lg border border-green-200 shadow-sm border-l-4 border-l-green-500">
                             <div className="flex-1 w-full flex items-center gap-2">
-                              <MapPin className="h-4 w-4 text-green-600 print:hidden" />
-                              <span className="font-medium text-gray-800 print:text-black">{shift.location}</span>
+                              <MapPin className="h-4 w-4 text-green-600" />
+                              <span className="font-medium text-gray-800">{shift.location}</span>
                             </div>
                             <div className="flex items-center gap-2 w-full lg:w-auto">
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white text-green-700 font-medium border border-green-200 print:bg-transparent print:border-none print:text-black print:p-0">
-                                <Clock className="h-3.5 w-3.5 print:hidden" />
-                                {shift.checkIn} <span className="text-gray-400 font-normal px-1 print:text-black">até</span> {shift.checkOut}
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white text-green-700 font-medium border border-green-200">
+                                <Clock className="h-3.5 w-3.5" />
+                                {shift.checkIn} <span className="text-gray-400 font-normal px-1">até</span> {shift.checkOut}
                               </span>
                               <button
                                 onClick={() => handleDeleteSavedShift(shift.id)}
-                                className="p-2 ml-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors print:hidden"
+                                className="p-2 ml-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
                                 title="Remover Turno Salvo do Banco"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -245,7 +332,7 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
 
                         {/* 2. Formulário de Novos Turnos (Pendente de salvar) */}
                         {dayShifts.map((shift) => (
-                          <div key={shift.id} className="flex flex-col lg:flex-row gap-3 items-start lg:items-center animate-in fade-in slide-in-from-left-2 duration-200 bg-white p-3 rounded-lg border border-gray-200 shadow-sm border-l-4 border-l-blue-500 print:hidden">
+                          <div key={shift.id} className="flex flex-col lg:flex-row gap-3 items-start lg:items-center animate-in fade-in slide-in-from-left-2 duration-200 bg-white p-3 rounded-lg border border-gray-200 shadow-sm border-l-4 border-l-blue-500">
                             <div className="relative flex-1 w-full">
                               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <MapPin className="h-4 w-4 text-gray-400" />
@@ -285,16 +372,20 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
 
                         {/* Mensagem Vazia se não tiver nenhum dos dois */}
                         {savedForDay.length === 0 && dayShifts.length === 0 && (
-                          <span className="text-gray-400 text-sm italic py-1 block print:hidden">Nenhum turno.</span>
-                        )}
-
-                        {/* Placeholder para Impressão caso esteja vazio */}
-                        {savedForDay.length === 0 && (
-                          <div className="hidden print:block w-full h-4"></div>
+                          <span className="text-gray-400 text-sm italic py-1 block">Nenhum turno.</span>
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-right align-top border-l border-gray-100 print:hidden">
+                    <td className="px-6 py-4 text-center align-top border-l border-gray-100">
+                      <div className="flex flex-col gap-3 h-full">
+                        {savedForDay.map((shift) => (
+                          <div key={shift.id} className="flex items-center justify-center font-bold text-gray-800 p-3 min-h-[46px]">
+                            {calculateShiftHours(shift.checkIn, shift.checkOut)}
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-right align-top border-l border-gray-100">
                       <button
                         onClick={() => handleAddShift(dateString)}
                         className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100 whitespace-nowrap"
@@ -307,13 +398,142 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
                 );
               })}
             </tbody>
+            <tfoot>
+              <tr className="bg-gray-100 border-t border-gray-300">
+                <td className="px-6 py-4 font-bold text-gray-800 text-right uppercase tracking-wider" colSpan={2}>
+                  TOTAL MENSAL
+                </td>
+                <td className="px-6 py-4 font-bold text-center text-gray-900 text-lg">
+                  {totalWorkedHours}
+                </td>
+                <td></td>
+              </tr>
+            </tfoot>
           </table>
+        </div>
 
-          {/* Print Footer */}
-          <div className="hidden print:block mt-16 pt-4 border-t border-black text-center text-xs text-black font-semibold uppercase mx-auto w-64 mb-8">
-            Visto do Responsável
+        {/* Layout Específico para Impressão */}
+        <div className="hidden print:flex gap-4 w-full text-black">
+          {/* Lado Esquerdo: Tabela Principal (75%) */}
+          <div className="w-[75%]">
+            <table className="w-full text-xs text-left border-collapse border border-black">
+              <thead className="bg-gray-200 border-b border-black text-black">
+                <tr>
+                  <th className="px-1 py-1 font-semibold border-r border-black w-8 text-center">DATA</th>
+                  <th className="px-1 py-1 font-semibold border-r border-black w-8 text-center">DIA</th>
+                  <th className="px-1 py-1 font-semibold border-r border-black">LOCAL</th>
+                  <th className="px-1 py-1 font-semibold border-r border-black w-14 text-center">ENTRADA</th>
+                  <th className="px-1 py-1 font-semibold border-r border-black w-14 text-center">SAÍDA</th>
+                  <th className="px-1 py-1 font-semibold border-r border-black w-16 text-center">HORAS TRAB</th>
+                  <th className="px-1 py-1 font-semibold w-20">OBSERVAÇÃO</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-black">
+                {daysArray.map(({ day, dateString, dayOfWeek }) => {
+                  const savedForDay = savedShiftsList.filter(shift => {
+                    const d = new Date(shift.referenceDate);
+                    const shiftDateString = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+                    return shiftDateString === dateString;
+                  });
+
+                  // Renderizar 1 linha por dia contendo empilhamento flex caso haja múltiplos turnos
+                  return (
+                    <tr key={day} className="border-b border-black">
+                      <td className="px-1 py-1 border-r border-black text-center align-middle font-medium">
+                        {String(day).padStart(2, '0')}
+                      </td>
+                      <td className="px-1 py-1 border-r border-black text-center align-middle uppercase">
+                        {dayOfWeek}
+                      </td>
+                      <td className="px-1 py-1 border-r border-black align-middle">
+                        <div className="flex flex-col gap-1">
+                          {savedForDay.length > 0 ? savedForDay.map(s => <span key={s.id}>{s.location}</span>) : <span className="text-transparent">.</span>}
+                        </div>
+                      </td>
+                      <td className="px-1 py-1 border-r border-black text-center align-middle">
+                        <div className="flex flex-col gap-1">
+                          {savedForDay.length > 0 ? savedForDay.map(s => <span key={s.id}>{s.checkIn}</span>) : <span className="text-transparent">.</span>}
+                        </div>
+                      </td>
+                      <td className="px-1 py-1 border-r border-black text-center align-middle">
+                        <div className="flex flex-col gap-1">
+                          {savedForDay.length > 0 ? savedForDay.map(s => <span key={s.id}>{s.checkOut}</span>) : <span className="text-transparent">.</span>}
+                        </div>
+                      </td>
+                      <td className="px-1 py-1 border-r border-black text-center align-middle font-bold">
+                        <div className="flex flex-col gap-1">
+                          {savedForDay.length > 0 ? savedForDay.map(s => <span key={s.id}>{calculateShiftHours(s.checkIn, s.checkOut)}</span>) : <span className="text-transparent">.</span>}
+                        </div>
+                      </td>
+                      <td className="px-1 py-1 align-middle">
+                         <div className="flex flex-col gap-1">
+                           {savedForDay.length > 0 ? savedForDay.map(s => <span key={s.id}>&nbsp;</span>) : <span className="text-transparent">.</span>}
+                         </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="bg-gray-200 border-t border-black">
+                  <td className="px-1 py-1 font-bold text-right uppercase border-r border-black" colSpan={5}>TOTAL</td>
+                  <td className="px-1 py-1 font-bold text-center border-r border-black">{totalWorkedHours}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          {/* Lado Direito: Quadros de Resumo Financeiro (25%) */}
+          <div className="w-[25%] flex flex-col gap-6">
+            
+            <table className="w-full text-xs text-left border-collapse border border-black bg-white">
+              <thead className="bg-yellow-200 border-b border-black text-black">
+                <tr>
+                  <th className="px-2 py-1 font-bold text-center" colSpan={2}>CÁLCULO TOTAL DE HORAS</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-black">
+                <tr>
+                  <td className="px-2 py-1 font-semibold border-r border-black w-2/3">HORAS PREVISTAS</td>
+                  <td className="px-2 py-1 text-center font-bold">{horasPrevistas}</td>
+                </tr>
+                <tr>
+                  <td className="px-2 py-1 font-semibold border-r border-black w-2/3">HORAS EFETIVAS</td>
+                  <td className="px-2 py-1 text-center font-bold">{totalWorkedHours}</td>
+                </tr>
+                <tr>
+                  <td className="px-2 py-1 font-semibold border-r border-black w-2/3 bg-gray-100">SALDO (h)</td>
+                  <td className="px-2 py-1 text-center font-bold bg-gray-100">{saldoHoras.toFixed(2)}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <table className="w-full text-xs text-left border-collapse border border-black bg-white">
+              <thead className="bg-blue-200 border-b border-black text-black">
+                <tr>
+                  <th className="px-2 py-1 font-bold text-center" colSpan={2}>
+                    {isPJFixo ? 'FECHAMENTO (CONTRATO FIXO)' : 'CÁLCULO HORAS EXTRAS'}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-black">
+                {!isPJFixo && (
+                  <tr>
+                    <td className="px-2 py-1 font-semibold border-r border-black w-2/3">VALOR P/H (R$)</td>
+                    <td className="px-2 py-1 text-center font-bold">{taxaHora.toFixed(2)}</td>
+                  </tr>
+                )}
+                <tr>
+                  <td className="px-2 py-1 font-semibold border-r border-black w-2/3 bg-gray-100">TOTAL (R$)</td>
+                  <td className="px-2 py-1 text-center font-bold bg-gray-100">{valorTotal.toFixed(2)}</td>
+                </tr>
+              </tbody>
+            </table>
+
           </div>
         </div>
+
       </div>
     </div>
   );

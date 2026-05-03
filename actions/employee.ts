@@ -13,13 +13,17 @@ export async function addEmployee(formData: FormData) {
   const registrationCompanyRaw = formData.get("registrationCompany") as string;
   const registrationCompany = registrationCompanyRaw ? (registrationCompanyRaw as RegistrationCompany) : "NAO_REGISTRADO";
   
-  const hourlyRateStr = formData.get("hourlyRate") as string;
+  const hourlyRateStr = formData.get("hourlyRate") as string | null;
+  const baseSalaryStr = formData.get("baseSalary") as string | null;
   
   const pixKey = formData.get("pixKey") as string | null;
   const pixType = formData.get("pixType") as string | null;
   const receivesVA = formData.get("receivesVA") === "on";
   const receivesVT = formData.get("receivesVT") === "on";
   const receivesIntervalHour = formData.get("receivesIntervalHour") === "on";
+  const receivesNightHazard = formData.get("receivesNightHazard") === "on";
+  const workLocation = formData.get("workLocation") as string | null;
+  const standardHours = formData.get("standardHours") as string | null;
 
   await prisma.employee.create({
     data: {
@@ -28,12 +32,16 @@ export async function addEmployee(formData: FormData) {
       workSchedule,
       startParity,
       registrationCompany,
-      hourlyRate: hourlyRateStr,
+      hourlyRate: hourlyRateStr || "0",
+      baseSalary: baseSalaryStr || null,
       pixKey,
       pixType,
       receivesVA,
       receivesVT,
       receivesIntervalHour,
+      receivesNightHazard,
+      workLocation,
+      standardHours,
       isActive: true,
     },
   });
@@ -59,13 +67,17 @@ export async function updateEmployee(id: string, formData: FormData) {
   const registrationCompanyRaw = formData.get("registrationCompany") as string;
   const registrationCompany = registrationCompanyRaw ? (registrationCompanyRaw as RegistrationCompany) : "NAO_REGISTRADO";
   
-  const hourlyRateStr = formData.get("hourlyRate") as string;
+  const hourlyRateStr = formData.get("hourlyRate") as string | null;
+  const baseSalaryStr = formData.get("baseSalary") as string | null;
   
   const pixKey = formData.get("pixKey") as string | null;
   const pixType = formData.get("pixType") as string | null;
   const receivesVA = formData.get("receivesVA") === "on";
   const receivesVT = formData.get("receivesVT") === "on";
   const receivesIntervalHour = formData.get("receivesIntervalHour") === "on";
+  const receivesNightHazard = formData.get("receivesNightHazard") === "on";
+  const workLocation = formData.get("workLocation") as string | null;
+  const standardHours = formData.get("standardHours") as string | null;
 
   await prisma.employee.update({
     where: { id },
@@ -75,12 +87,16 @@ export async function updateEmployee(id: string, formData: FormData) {
       workSchedule,
       startParity,
       registrationCompany,
-      hourlyRate: hourlyRateStr,
+      hourlyRate: hourlyRateStr || "0",
+      baseSalary: baseSalaryStr || null,
       pixKey,
       pixType,
       receivesVA,
       receivesVT,
       receivesIntervalHour,
+      receivesNightHazard,
+      workLocation,
+      standardHours,
     },
   });
 

@@ -26,10 +26,13 @@ function getExpectedWorkDays(
   startParity: StartParity
 ): number {
   const daysInMonth = getDaysInMonth(new Date(year, month));
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
   
   if (workSchedule === "SCALE_12X36") {
     let expectedDays = 0;
     for (let day = 1; day <= daysInMonth; day++) {
+      if (isCurrentMonth && day > today.getDate()) break;
       const isEven = day % 2 === 0;
       if (startParity === "PAR" && isEven) expectedDays++;
       if (startParity === "IMPAR" && !isEven) expectedDays++;
@@ -40,6 +43,7 @@ function getExpectedWorkDays(
   // Para FIXED_220 (escala normal), usamos dias úteis (Segunda a Sexta) como padrão simplificado.
   let expectedDays = 0;
   for (let day = 1; day <= daysInMonth; day++) {
+    if (isCurrentMonth && day > today.getDate()) break;
     const date = new Date(year, month, day);
     if (!isWeekend(date)) expectedDays++;
   }

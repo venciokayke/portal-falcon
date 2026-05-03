@@ -39,12 +39,13 @@ export async function getPayrollData(month: number, year: number) {
   return employees.map(emp => {
     const payroll = calculatePayroll(emp, emp.shifts, month, year);
     
-    // Calcula um contra-cheque base padrão caso não haja salvo
-    let netSalaryAccounting = 0;
-    if (emp.contractType === "CLT") {
-      netSalaryAccounting = Number(emp.hourlyRate) * 220; 
+    let contraCheque = 0;
+    if (emp.contractType === "PJ_FIXO") {
+      contraCheque = Number(emp.baseSalary) || 0;
+    } else if (emp.contractType === "CLT") {
+      contraCheque = Number(emp.hourlyRate) * 220; 
     } else {
-      netSalaryAccounting = Number(emp.hourlyRate) * payroll.totalWorkedHours;
+      contraCheque = Number(emp.hourlyRate) * payroll.totalWorkedHours;
     }
 
     const saved = savedMap.get(emp.id);
@@ -52,19 +53,16 @@ export async function getPayrollData(month: number, year: number) {
     return {
       employeeId: emp.id,
       name: emp.name,
+      registrationCompany: emp.registrationCompany,
       pixKey: emp.pixKey,
       pixType: emp.pixType,
-      receivesVA: emp.receivesVA,
       receivesVT: emp.receivesVT,
-      // Se tiver salvo no banco, usamos os dados salvos (para preservar edições manuais),
-      // Senão usamos o cálculo fresquinho do util.
-      absences: payroll.currentMonthAbsences, // Faltas a gente sempre traz do util pra referência (ou do salvo)
-      netSalaryAccounting: saved ? Number(saved.netSalaryAccounting) : Number(netSalaryAccounting.toFixed(2)),
-      vaTotal: saved ? Number(saved.vaTotal) : payroll.suggestedVA,
-      vtTotal: saved ? Number(saved.vtTotal) : payroll.suggestedVT,
-      extraHoursTotalValue: saved ? Number(saved.extraHoursTotalValue) : payroll.extraValue,
-      manualAdditions: saved ? Number(saved.manualAdditions) : 0,
-      manualDeductions: saved ? Number(saved.manualDeductions) : 0,
+      absences: payroll.currentMonthAbsences,
+      contraCheque: saved ? Number(saved.contraCheque) : Number(contraCheque.toFixed(2)),
+      valeTransporte: saved ? Number(saved.valeTransporte) : payroll.suggestedVT,
+      valoresExtras: saved ? Number(saved.valoresExtras) : payroll.extraValue,
+      descontos: saved ? Number(saved.descontos) : 0,
+      observacoes: saved ? saved.observacoes : "",
       expectedDaysNextMonth: payroll.expectedDaysNextMonth
     };
   });
@@ -80,13 +78,12 @@ export async function savePayrollReceipts(month: number, year: number, receipts:
     employeeId: r.employeeId,
     month,
     year,
-    netSalaryAccounting: r.netSalaryAccounting,
-    extraHoursTotalValue: r.extraHoursTotalValue,
-    vaTotal: r.vaTotal,
-    vtTotal: r.vtTotal,
-    manualAdditions: r.manualAdditions,
-    manualDeductions: r.manualDeductions,
-    finalAmount: r.finalAmount,
+    contraCheque: r.contraCheque,
+    valeTransporte: r.valeTransporte,
+    valoresExtras: r.valoresExtras,
+    descontos: r.descontos,
+    observacoes: r.observacoes,
+    total: r.total,
   }));
 
   await prisma.payrollReceipt.createMany({

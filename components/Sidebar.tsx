@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Clock, Wallet, Printer } from "lucide-react";
+import { LayoutDashboard, Users, Clock, Wallet, Printer, FileSpreadsheet, Ticket } from "lucide-react";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -13,6 +13,8 @@ export default function Sidebar() {
     { href: "/ponto", label: "Lançamento de Ponto", icon: Clock },
     { href: "/folha", label: "Fechamento de Folha", icon: Wallet },
     { href: "/imprimir", label: "Relatórios", icon: Printer },
+    { href: "/relatorio-contabilidade", label: "Horas Intervalares", icon: FileSpreadsheet },
+    { href: "/relatorio-beneficios", label: "Relatório de Benefícios", icon: Ticket },
   ];
 
   return (
@@ -31,16 +33,15 @@ export default function Sidebar() {
           const Icon = link.icon;
           // Regra inteligente para manter o menu aceso quando estiver nas subpáginas (ex: /ponto/[id])
           const isActive = pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href));
-          
+
           return (
             <Link
               key={link.href}
               href={link.href}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-medium group ${
-                isActive
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-900/20"
-                  : "text-gray-400 hover:text-white hover:bg-gray-800"
-              }`}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-medium group ${isActive
+                ? "bg-blue-600 text-white shadow-md shadow-blue-900/20"
+                : "text-gray-400 hover:text-white hover:bg-gray-800"
+                }`}
             >
               <Icon className={`w-5 h-5 transition-transform duration-200 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
               {link.label}
@@ -50,7 +51,7 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-6 border-t border-gray-800 text-xs text-gray-500 text-center font-medium">
-        © 2026 Falcon Corp.
+        © 2026 Falcon Monitoramento e Serviços LTDA.
       </div>
     </aside>
   );

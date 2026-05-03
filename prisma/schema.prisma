@@ -10,6 +10,8 @@ datasource db {
 enum ContractType {
   CLT
   HORISTA
+  PJ_FIXO
+  PJ_HORISTA
 }
 
 enum WorkSchedule {
@@ -44,6 +46,10 @@ model Employee {
   receivesVA           Boolean      @default(false)
   receivesVT           Boolean      @default(false)
   receivesIntervalHour Boolean      @default(false)
+  receivesNightHazard  Boolean      @default(false)
+  workLocation         String?
+  standardHours        String?
+  baseSalary           Decimal?     @db.Decimal(10, 2)
 
   shifts               Shift[]
   payrollReceipts      PayrollReceipt[]
@@ -69,13 +75,12 @@ model PayrollReceipt {
   employeeId           String   @db.Uuid
   month                Int
   year                 Int
-  netSalaryAccounting  Decimal  @db.Decimal(10, 2)
-  extraHoursTotalValue Decimal  @db.Decimal(10, 2)
-  vaTotal              Decimal  @db.Decimal(10, 2)
-  vtTotal              Decimal  @db.Decimal(10, 2)
-  manualAdditions      Decimal  @db.Decimal(10, 2)
-  manualDeductions     Decimal  @db.Decimal(10, 2)
-  finalAmount          Decimal  @db.Decimal(10, 2)
+  contraCheque         Decimal  @db.Decimal(10, 2)
+  valeTransporte       Decimal  @db.Decimal(10, 2)
+  valoresExtras        Decimal  @db.Decimal(10, 2)
+  descontos            Decimal  @db.Decimal(10, 2)
+  observacoes          String?  @db.Text
+  total                Decimal  @db.Decimal(10, 2)
 
   employee             Employee @relation(fields: [employeeId], references: [id])
 

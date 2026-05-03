@@ -16,12 +16,16 @@ export default function EmployeeFormModal({
   const [contractType, setContractType] = useState(employee?.contractType || "CLT");
   const [registrationCompany, setRegistrationCompany] = useState(employee?.registrationCompany || "NAO_REGISTRADO");
   const [activeTab, setActiveTab] = useState<"base" | "financial">("base");
+  const [receivesIntervalHour, setReceivesIntervalHour] = useState<boolean>(employee?.receivesIntervalHour || false);
+  const [receivesNightHazard, setReceivesNightHazard] = useState<boolean>(employee?.receivesNightHazard || false);
 
   const handleContractChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
     setContractType(value);
-    if (value === "HORISTA") {
+    if (value === "HORISTA" || value === "PJ_HORISTA" || value === "PJ_FIXO") {
       setWorkSchedule("CUSTOM");
+      setReceivesIntervalHour(false);
+      setReceivesNightHazard(false);
     } else if (value === "CLT" && workSchedule === "CUSTOM") {
       setWorkSchedule("FIXED_220");
     }
@@ -43,6 +47,8 @@ export default function EmployeeFormModal({
       setWorkSchedule("FIXED_220");
       setContractType("CLT");
       setRegistrationCompany("NAO_REGISTRADO");
+      setReceivesIntervalHour(false);
+      setReceivesNightHazard(false);
     }
   };
 
@@ -94,6 +100,10 @@ export default function EmployeeFormModal({
                     <input required name="name" defaultValue={employee?.name} type="text" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-shadow" placeholder="Ex: João da Silva" />
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Lotação</label>
+                    <input name="workLocation" defaultValue={employee?.workLocation || ""} type="text" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-shadow" placeholder="Ex: SAMAMBAIA, BOI FORTE, GUARANIS" />
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Empresa de Registro</label>
                     <select 
                       name="registrationCompany" 
@@ -118,13 +128,28 @@ export default function EmployeeFormModal({
                       >
                         <option value="CLT">CLT</option>
                         <option value="HORISTA">Horista</option>
+                        <option value="PJ_FIXO">PJ Fixo</option>
+                        <option value="PJ_HORISTA">PJ Horista</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        {contractType === 'CLT' ? 'Valor da Hora Extra (R$)' : 'Valor da Hora (R$)'}
-                      </label>
-                      <input required name="hourlyRate" defaultValue={employee?.hourlyRate} type="number" step="0.01" min="0" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-shadow" placeholder="0.00" />
+                      {contractType === 'PJ_FIXO' ? (
+                        <>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Salário Base (R$)
+                          </label>
+                          <input required name="baseSalary" defaultValue={employee?.baseSalary} type="number" step="0.01" min="0" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-shadow" placeholder="2000.00" />
+                          <input type="hidden" name="hourlyRate" value="0" />
+                        </>
+                      ) : (
+                        <>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            {contractType === 'CLT' ? 'Valor da Hora Extra (R$)' : 'Valor da Hora (R$)'}
+                          </label>
+                          <input required name="hourlyRate" defaultValue={employee?.hourlyRate} type="number" step="0.01" min="0" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-shadow" placeholder="0.00" />
+                          <input type="hidden" name="baseSalary" value="0" />
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -134,14 +159,19 @@ export default function EmployeeFormModal({
                       name="workSchedule" 
                       value={workSchedule}
                       onChange={(e) => setWorkSchedule(e.target.value)}
-                      disabled={contractType === "HORISTA"}
-                      className={`w-full px-3 py-2 border border-gray-300 rounded-lg outline-none transition-shadow ${contractType === "HORISTA" ? "bg-gray-100 text-gray-500 cursor-not-allowed" : "bg-white focus:ring-2 focus:ring-blue-500"}`}
+                      disabled={contractType === "HORISTA" || contractType === "PJ_HORISTA" || contractType === "PJ_FIXO"}
+                      className={`w-full px-3 py-2 border border-gray-300 rounded-lg outline-none transition-shadow ${["HORISTA", "PJ_HORISTA", "PJ_FIXO"].includes(contractType) ? "bg-gray-100 text-gray-500 cursor-not-allowed" : "bg-white focus:ring-2 focus:ring-blue-500"}`}
                     >
                       <option value="FIXED_220">Fixo (220h)</option>
                       <option value="SCALE_12X36">Escala 12x36</option>
                       <option value="CUSTOM" disabled={contractType === "CLT"}>Personalizada</option>
                     </select>
-                    {contractType === "HORISTA" && <input type="hidden" name="workSchedule" value="CUSTOM" />}
+                    {["HORISTA", "PJ_HORISTA", "PJ_FIXO"].includes(contractType) && <input type="hidden" name="workSchedule" value="CUSTOM" />}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Horário Padrão</label>
+                    <input name="standardHours" defaultValue={employee?.standardHours || ""} type="text" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-shadow" placeholder="Ex: 18:00 AS 06:00HS" />
                   </div>
 
                   {workSchedule === "SCALE_12X36" && (
@@ -184,9 +214,27 @@ export default function EmployeeFormModal({
                       <input type="checkbox" name="receivesVT" defaultChecked={employee?.receivesVT} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
                       <span className="text-sm font-medium text-gray-700">Recebe Vale Transporte (VT)</span>
                     </label>
-                    <label className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-gray-100">
-                      <input type="checkbox" name="receivesIntervalHour" defaultChecked={employee?.receivesIntervalHour} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
+                    <label className={`flex items-center gap-3 p-2 rounded-lg transition-colors border border-transparent ${['HORISTA', 'PJ_HORISTA', 'PJ_FIXO'].includes(contractType) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer hover:border-gray-100'}`}>
+                      <input 
+                        type="checkbox" 
+                        name="receivesIntervalHour" 
+                        checked={receivesIntervalHour}
+                        onChange={(e) => setReceivesIntervalHour(e.target.checked)}
+                        disabled={['HORISTA', 'PJ_HORISTA', 'PJ_FIXO'].includes(contractType)}
+                        className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 disabled:cursor-not-allowed" 
+                      />
                       <span className="text-sm font-medium text-gray-700">Recebe Hora Intervalar</span>
+                    </label>
+                    <label className={`flex items-center gap-3 p-2 rounded-lg transition-colors border border-transparent ${['HORISTA', 'PJ_HORISTA', 'PJ_FIXO'].includes(contractType) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer hover:border-gray-100'}`}>
+                      <input 
+                        type="checkbox" 
+                        name="receivesNightHazard" 
+                        checked={receivesNightHazard}
+                        onChange={(e) => setReceivesNightHazard(e.target.checked)}
+                        disabled={['HORISTA', 'PJ_HORISTA', 'PJ_FIXO'].includes(contractType)}
+                        className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 disabled:cursor-not-allowed" 
+                      />
+                      <span className="text-sm font-medium text-gray-700">Recebe Adicional Noturno (AD)</span>
                     </label>
                   </div>
                 </div>

@@ -33,13 +33,16 @@ export default async function DashboardPage() {
   let projectedFinancial = 0;
 
   activeEmployees.forEach(emp => {
-    const result = calculatePayroll(emp, emp.shifts, currentMonth, currentYear);
-    totalAbsences += result.currentMonthAbsences;
-    totalOvertimeHours += result.extraHoursBalance;
-    projectedFinancial += result.extraValue + result.suggestedVA + result.suggestedVT;
+    if (emp.contractType !== 'PJ_FIXO') {
+      const result = calculatePayroll(emp, emp.shifts, currentMonth, currentYear);
+      totalAbsences += result.currentMonthAbsences;
+      totalOvertimeHours += result.extraHoursBalance;
+      projectedFinancial += result.extraValue + result.suggestedVA + result.suggestedVT;
+    }
   });
 
-  const fillingStatus = [...activeEmployees]
+  const fillingStatus = activeEmployees
+    .filter(emp => emp.contractType !== 'PJ_FIXO')
     .map(emp => ({ name: emp.name, shiftCount: emp.shifts.length }))
     .sort((a, b) => a.shiftCount - b.shiftCount)
     .slice(0, 5);

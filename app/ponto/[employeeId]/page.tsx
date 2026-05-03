@@ -17,6 +17,7 @@ export default async function PontoPage({ params }: { params: Promise<{ employee
   const serializedEmployee = {
     ...employee,
     hourlyRate: employee.hourlyRate.toNumber(),
+    baseSalary: employee.baseSalary ? employee.baseSalary.toNumber() : null,
   };
 
   return (
