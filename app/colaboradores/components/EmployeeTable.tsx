@@ -20,8 +20,8 @@ const GROUPS = [
 export default function EmployeeTable({ employees }: { employees: any[] }) {
   const [isPending, startTransition] = useTransition();
 
-  const handleArchive = (id: string) => {
-    if (confirm("Tem certeza que deseja arquivar este colaborador?")) {
+  const handleArchive = (id: string, name: string) => {
+    if (confirm(`⚠️ Tem certeza que deseja arquivar "${name}"?\n\nEsta ação irá remover o colaborador de todas as listas ativas do sistema. Ele poderá ser reativado depois na lista de Funcionários Arquivados.`)) {
       startTransition(() => {
         archiveEmployee(id);
       });
@@ -98,7 +98,7 @@ export default function EmployeeTable({ employees }: { employees: any[] }) {
                             }
                           />
                           <button
-                            onClick={() => handleArchive(emp.id)}
+                            onClick={() => handleArchive(emp.id, emp.name)}
                             disabled={isPending}
                             className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors disabled:opacity-50"
                             title="Arquivar Colaborador"

@@ -94,10 +94,10 @@ export default function PayrollClient() {
               {/* Título Amarelo */}
               <tr>
                 <th colSpan={9} className="bg-yellow-400 text-black text-center font-bold py-2 border-b border-black uppercase print:border-black text-base print:text-xs">
-                  REALIZAR PAGAMENTO PELA {title}
+                  FUNCIONÁRIOS {title}
                 </th>
               </tr>
-              
+
               {/* Linha de Totais (Sub-header) */}
               <tr className="bg-gray-200 border-b border-black print:bg-gray-100 print:border-black">
                 <th colSpan={3} className="px-2 py-1.5 font-bold text-right border-r border-black print:border-black">
@@ -209,12 +209,14 @@ export default function PayrollClient() {
   };
 
   return (
-    <div className="flex flex-col bg-white min-h-screen">
+    <div className="flex flex-col bg-white">
       <style dangerouslySetInnerHTML={{
         __html: `
         @media print {
           @page { size: A4 landscape; margin: 5mm; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          /* Remover altura mínima que gera folha em branco */
+          body, html, #__next, main, .min-h-screen { min-height: 0 !important; height: auto !important; }
           /* Esconder botões na impressão */
           .no-print { display: none !important; }
           /* Inputs parecerão texto puro */

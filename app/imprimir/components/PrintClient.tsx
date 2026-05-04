@@ -40,7 +40,8 @@ export default function PrintClient({ employees }: { employees: any[] }) {
 
   return (
     <>
-      <style dangerouslySetInnerHTML={{__html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         @media print {
           body {
             background-color: white !important;
@@ -48,7 +49,7 @@ export default function PrintClient({ employees }: { employees: any[] }) {
             padding: 0 !important;
           }
           @page {
-            margin: 1cm;
+            margin: .5cm;
             size: A4;
           }
         }
@@ -62,33 +63,33 @@ export default function PrintClient({ employees }: { employees: any[] }) {
               <Printer className="text-blue-600" />
               Impressão de Folha de Ponto
             </h1>
-            
+
             <div className="flex gap-4 mb-6">
-              <select 
-                  value={month} 
-                  onChange={e => setMonth(Number(e.target.value))}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                >
-                  {["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"].map((m, i) => (
-                    <option key={i} value={i}>{m}</option>
-                  ))}
-                </select>
-                <select 
-                  value={year} 
-                  onChange={e => setYear(Number(e.target.value))}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                >
-                  {[2024, 2025, 2026, 2027].map(y => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
+              <select
+                value={month}
+                onChange={e => setMonth(Number(e.target.value))}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                {["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"].map((m, i) => (
+                  <option key={i} value={i}>{m}</option>
+                ))}
+              </select>
+              <select
+                value={year}
+                onChange={e => setYear(Number(e.target.value))}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                {[2024, 2025, 2026, 2027].map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-4">
               <div className="flex justify-between items-center border-b pb-2">
                 <label className="flex items-center gap-2 font-medium cursor-pointer text-gray-700">
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     checked={selectedIds.length === employees.length && employees.length > 0}
                     onChange={handleSelectAll}
                     className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -99,12 +100,12 @@ export default function PrintClient({ employees }: { employees: any[] }) {
                   {selectedIds.length} selecionados
                 </span>
               </div>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto p-1">
                 {employees.map(emp => (
                   <label key={emp.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded-lg border border-transparent hover:border-gray-200 transition-colors">
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       checked={selectedIds.includes(emp.id)}
                       onChange={() => handleSelect(emp.id)}
                       className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -116,7 +117,7 @@ export default function PrintClient({ employees }: { employees: any[] }) {
             </div>
 
             <div className="mt-8 flex flex-col sm:flex-row gap-4 pt-4 border-t border-gray-100">
-              <button 
+              <button
                 onClick={() => handlePrint("blank")}
                 disabled={selectedIds.length === 0}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg font-semibold transition-colors shadow-sm disabled:opacity-50"
@@ -124,7 +125,7 @@ export default function PrintClient({ employees }: { employees: any[] }) {
                 <Printer className="w-5 h-5" />
                 Imprimir em Branco
               </button>
-              <button 
+              <button
                 onClick={() => handlePrint("filled")}
                 disabled={selectedIds.length === 0}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-semibold transition-colors shadow-sm disabled:opacity-50"
@@ -139,23 +140,22 @@ export default function PrintClient({ employees }: { employees: any[] }) {
         {/* Visualização de Impressão - Escondida na tela (hidden), mostrada na impressão (print:block) */}
         <div className="hidden print:block bg-white text-black">
           {selectedEmployees.map((emp, index) => (
-            <div 
-              key={emp.id} 
-              className="print:break-after-page p-4 w-full max-w-[210mm] mx-auto box-border relative"
-              style={{ pageBreakAfter: 'always' }}
+            <div
+              key={emp.id}
+              className={`p-4 w-full max-w-[210mm] mx-auto box-border relative ${index < selectedEmployees.length - 1 ? 'print:break-after-page' : ''}`}
+              style={index < selectedEmployees.length - 1 ? { pageBreakAfter: 'always' } : {}}
             >
               {/* Header do Relatório */}
               <div className="text-center mb-6">
                 <h2 className="text-2xl font-bold uppercase tracking-widest border-b-2 border-black inline-block pb-1">Controle de Frequência</h2>
                 <p className="text-md font-semibold mt-2">Mês de Referência: {String(month + 1).padStart(2, '0')}/{year}</p>
               </div>
-              
+
               {/* Dados do Colaborador */}
               <div className="mb-6 grid grid-cols-2 gap-y-2 gap-x-4 text-sm border-2 border-gray-800 p-3 rounded">
-                <div><strong className="uppercase">Colaborador:</strong> {emp.name}</div>
-                <div><strong className="uppercase">Escala:</strong> {emp.workSchedule}</div>
-                <div><strong className="uppercase">Contrato:</strong> {emp.contractType}</div>
-                <div><strong className="uppercase">Chave PIX:</strong> {emp.pixKey || "Não cadastrada"}</div>
+                <div className="col-span-2"><strong className="uppercase">Colaborador:</strong> {emp.name}</div>
+                <div><strong className="uppercase">Escala:</strong> {emp.workSchedule === 'FIXED_220' ? '220h Mensais' : emp.workSchedule === 'FIXED_180' ? '180h Mensais' : emp.workSchedule === 'SCALE_12X36' ? 'Escala 12x36' : 'Personalizada'}</div>
+                <div><strong className="uppercase">Contrato:</strong> {emp.contractType === 'PJ_FIXO' ? 'PJ Fixo' : emp.contractType === 'PJ_HORISTA' ? 'PJ Horista' : emp.contractType}</div>
               </div>
 
               {/* Tabela de Dias */}

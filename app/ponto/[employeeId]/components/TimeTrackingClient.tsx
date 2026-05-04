@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { saveShifts, getShifts, deleteShift } from "@/actions/shift";
-import { calculatePayroll } from "@/utils/calculatePayroll";
 import { Calendar, MapPin, Plus, Trash2, Save, Clock, Printer } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -19,7 +18,7 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
   const currentDate = new Date();
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth());
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
-  
+
   const [shifts, setShifts] = useState<Record<string, any[]>>({});
   const [savedShiftsList, setSavedShiftsList] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -46,14 +45,14 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
     if (!checkIn || !checkOut) return 0;
     const [inH, inM] = checkIn.split(':').map(Number);
     const [outH, outM] = checkOut.split(':').map(Number);
-    
+
     let inMinutes = inH * 60 + inM;
     let outMinutes = outH * 60 + outM;
-    
+
     if (outMinutes < inMinutes) {
       outMinutes += 24 * 60;
     }
-    
+
     return (outMinutes - inMinutes) / 60;
   };
 
@@ -74,7 +73,7 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
   const isCLT = employee.contractType === 'CLT';
   const isPJFixo = employee.contractType === 'PJ_FIXO';
   const isPJHorista = employee.contractType === 'PJ_HORISTA';
-  
+
   let taxaHora = 0;
   if (isPJFixo) {
     taxaHora = 0;
@@ -212,7 +211,7 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
         }
       `}} />
       <div className="flex flex-col bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print:shadow-none print:border-none print:rounded-none print:bg-transparent">
-        
+
         {/* Cabeçalho de Impressão */}
         <div className="hidden print:block text-center mb-4 border-b-2 border-black pb-2">
           <h2 className="text-xl font-bold uppercase tracking-widest text-black">Espelho de Conferência</h2>
@@ -225,8 +224,8 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
         <div className="p-6 border-b border-gray-200 bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
           <div className="flex items-center gap-3">
             <Calendar className="text-gray-500 h-5 w-5" />
-            <select 
-              value={selectedMonth} 
+            <select
+              value={selectedMonth}
               onChange={e => {
                 setSelectedMonth(Number(e.target.value));
                 setShifts({});
@@ -235,15 +234,15 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
             >
               {MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}
             </select>
-            <select 
-              value={selectedYear} 
+            <select
+              value={selectedYear}
               onChange={e => {
                 setSelectedYear(Number(e.target.value));
                 setShifts({});
               }}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700 transition-shadow"
             >
-              {Array.from({length: 5}, (_, i) => currentDate.getFullYear() - 2 + i).map(y => (
+              {Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i).map(y => (
                 <option key={y} value={y}>{y}</option>
               ))}
             </select>
@@ -285,7 +284,7 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
               {daysArray.map(({ day, dateString, dayOfWeek }) => {
                 const isWeekend = dayOfWeek.includes("sáb") || dayOfWeek.includes("dom");
                 const dayShifts = shifts[dateString] || [];
-                
+
                 // Filtra os turnos salvos que pertencem a este dia específico
                 const savedForDay = savedShiftsList.filter(shift => {
                   const d = new Date(shift.referenceDate);
@@ -306,7 +305,7 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
                     </td>
                     <td className="px-6 py-4 align-top">
                       <div className="flex flex-col gap-3">
-                        
+
                         {/* 1. Turnos Já Salvos (Histórico do dia) */}
                         {savedForDay.map((shift) => (
                           <div key={shift.id} className="flex flex-col lg:flex-row gap-3 items-start lg:items-center bg-green-50/50 p-3 rounded-lg border border-green-200 shadow-sm border-l-4 border-l-green-500">
@@ -421,7 +420,7 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
                 <tr>
                   <th className="px-1 py-1 font-semibold border-r border-black w-8 text-center">DATA</th>
                   <th className="px-1 py-1 font-semibold border-r border-black w-8 text-center">DIA</th>
-                  <th className="px-1 py-1 font-semibold border-r border-black">LOCAL</th>
+                  <th className="px-1 py-1 font-semibold border-r border-black print:w-[80px] print:max-w-[80px] truncate">LOCAL</th>
                   <th className="px-1 py-1 font-semibold border-r border-black w-14 text-center">ENTRADA</th>
                   <th className="px-1 py-1 font-semibold border-r border-black w-14 text-center">SAÍDA</th>
                   <th className="px-1 py-1 font-semibold border-r border-black w-16 text-center">HORAS TRAB</th>
@@ -445,9 +444,9 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
                       <td className="px-1 py-1 border-r border-black text-center align-middle uppercase">
                         {dayOfWeek}
                       </td>
-                      <td className="px-1 py-1 border-r border-black align-middle">
-                        <div className="flex flex-col gap-1">
-                          {savedForDay.length > 0 ? savedForDay.map(s => <span key={s.id}>{s.location}</span>) : <span className="text-transparent">.</span>}
+                      <td className="px-1 py-1 border-r border-black align-middle print:w-[80px] print:max-w-[80px] overflow-hidden">
+                        <div className="flex flex-col gap-1 truncate">
+                          {savedForDay.length > 0 ? savedForDay.map(s => <span key={s.id} className="truncate block">{s.location}</span>) : <span className="text-transparent">.</span>}
                         </div>
                       </td>
                       <td className="px-1 py-1 border-r border-black text-center align-middle">
@@ -466,9 +465,9 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
                         </div>
                       </td>
                       <td className="px-1 py-1 align-middle">
-                         <div className="flex flex-col gap-1">
-                           {savedForDay.length > 0 ? savedForDay.map(s => <span key={s.id}>&nbsp;</span>) : <span className="text-transparent">.</span>}
-                         </div>
+                        <div className="flex flex-col gap-1">
+                          {savedForDay.length > 0 ? savedForDay.map(s => <span key={s.id}>&nbsp;</span>) : <span className="text-transparent">.</span>}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -486,7 +485,7 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
 
           {/* Lado Direito: Quadros de Resumo Financeiro (25%) */}
           <div className="w-[25%] flex flex-col gap-6">
-            
+
             <table className="w-full text-xs text-left border-collapse border border-black bg-white">
               <thead className="bg-yellow-200 border-b border-black text-black">
                 <tr>
@@ -504,7 +503,7 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
                 </tr>
                 <tr>
                   <td className="px-2 py-1 font-semibold border-r border-black w-2/3 bg-gray-100">SALDO (h)</td>
-                  <td className="px-2 py-1 text-center font-bold bg-gray-100">{saldoHoras.toFixed(2)}</td>
+                  <td className="px-2 py-1 text-center font-bold bg-gray-100">{Math.round(saldoHoras)}</td>
                 </tr>
               </tbody>
             </table>

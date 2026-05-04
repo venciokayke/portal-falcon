@@ -70,10 +70,13 @@ export default function AccountingReportClient({ data }: { data: EmployeeData[] 
                   )}
                 </td>
                 <td className="px-2 py-1 border-r border-gray-200">
-                  <input
-                    type="text"
-                    className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:border-none print:p-0 print:focus:ring-0"
-                  />
+                  <select
+                    className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0"
+                  >
+                    <option value=""></option>
+                    <option value="SIM">SIM</option>
+                    <option value="NÃO">NÃO</option>
+                  </select>
                 </td>
                 <td className="px-4 py-2 border-r border-gray-200 text-gray-700 truncate max-w-[150px]" title={emp.workLocation}>
                   {emp.workLocation}

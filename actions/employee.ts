@@ -58,6 +58,16 @@ export async function archiveEmployee(id: string) {
   revalidatePath("/colaboradores");
 }
 
+export async function reactivateEmployee(id: string) {
+  await prisma.employee.update({
+    where: { id },
+    data: { isActive: true },
+  });
+
+  revalidatePath("/colaboradores");
+  revalidatePath("/colaboradores/arquivados");
+}
+
 export async function updateEmployee(id: string, formData: FormData) {
   const name = formData.get("name") as string;
   const contractType = formData.get("contractType") as ContractType;

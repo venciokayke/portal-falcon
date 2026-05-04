@@ -10,6 +10,7 @@ export default async function ImprimirPage() {
   const serializedEmployees = employees.map(emp => ({
     ...emp,
     hourlyRate: emp.hourlyRate.toNumber(),
+    baseSalary: emp.baseSalary ? emp.baseSalary.toNumber() : null,
   }));
 
   return <PrintClient employees={serializedEmployees} />;

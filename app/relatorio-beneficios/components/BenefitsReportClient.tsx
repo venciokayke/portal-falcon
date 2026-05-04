@@ -14,10 +14,10 @@ interface EmployeeBenefit {
   vtValue: string;
 }
 
-export default function BenefitsReportClient({ 
+export default function BenefitsReportClient({
   initialData,
-  availableExceptions 
-}: { 
+  availableExceptions
+}: {
   initialData: EmployeeBenefit[],
   availableExceptions: { id: string, name: string, receivesVA: boolean, receivesVT: boolean }[]
 }) {
@@ -53,12 +53,12 @@ export default function BenefitsReportClient({
 
   const handleAddException = () => {
     if (!selectedException) return;
-    
+
     const emp = exceptions.find(e => e.id === selectedException);
     if (!emp) return;
 
     setExceptions(prev => prev.filter(e => e.id !== emp.id));
-    
+
     setData(prev => [
       ...prev,
       {
@@ -138,7 +138,7 @@ export default function BenefitsReportClient({
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print:border-none print:shadow-none print:bg-transparent">
         <div className="p-4 border-b border-gray-200 flex flex-wrap justify-between items-center gap-4 print:hidden bg-gray-50">
           <div className="flex items-center gap-3">
-            <select 
+            <select
               value={selectedException}
               onChange={(e) => setSelectedException(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none min-w-[200px]"
@@ -188,42 +188,42 @@ export default function BenefitsReportClient({
                     {emp.name}
                   </td>
                   <td className="px-2 py-1 border-r border-gray-200">
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       value={emp.vaUnid}
                       onChange={(e) => handleUpdate(emp.id, "vaUnid", e.target.value)}
-                      className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:border-none print:p-0 print:focus:ring-0 text-center" 
+                      className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:border-none print:p-0 print:focus:ring-0 text-center"
                     />
                   </td>
                   <td className="px-2 py-1 border-r border-gray-200">
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       step="0.01"
                       value={emp.vaValue}
                       onChange={(e) => handleUpdate(emp.id, "vaValue", e.target.value)}
-                      className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none font-medium print:border-none print:p-0 print:focus:ring-0 text-right" 
+                      className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none font-medium print:border-none print:p-0 print:focus:ring-0 text-right"
                     />
                   </td>
                   <td className="px-2 py-1 border-r border-gray-200">
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       value={emp.vtUnid}
                       onChange={(e) => handleUpdate(emp.id, "vtUnid", e.target.value)}
-                      className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:border-none print:p-0 print:focus:ring-0 text-center" 
+                      className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:border-none print:p-0 print:focus:ring-0 text-center"
                     />
                   </td>
                   <td className="px-2 py-1">
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       step="0.01"
                       value={emp.vtValue}
                       onChange={(e) => handleUpdate(emp.id, "vtValue", e.target.value)}
-                      className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none font-medium print:border-none print:p-0 print:focus:ring-0 text-right" 
+                      className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none font-medium print:border-none print:p-0 print:focus:ring-0 text-right"
                     />
                   </td>
                 </tr>
               ))}
-              
+
               {data.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-gray-500">

@@ -50,6 +50,7 @@ model Employee {
   workLocation         String?
   standardHours        String?
   baseSalary           Decimal?     @db.Decimal(10, 2)
+  document             String?
 
   shifts               Shift[]
   payrollReceipts      PayrollReceipt[]
@@ -85,4 +86,16 @@ model PayrollReceipt {
   employee             Employee @relation(fields: [employeeId], references: [id])
 
   @@map("payroll_receipts")
+}
+
+model SystemUser {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  username  String   @unique
+  password  String
+  role      String   @default("ADMIN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_users")
 }
