@@ -2,8 +2,14 @@
 
 import { useTransition } from "react";
 import { deleteSystemUser } from "@/actions/system-user";
-import { Trash2, ShieldCheck } from "lucide-react";
+import { Trash2, ShieldCheck, Shield, User } from "lucide-react";
 import PasswordChangeModal from "./PasswordChangeModal";
+
+const ROLE_CONFIG: Record<string, { label: string; class: string; icon: any }> = {
+  ADMIN:   { label: "Admin",   class: "bg-purple-100 text-purple-700 border-purple-200", icon: ShieldCheck },
+  MANAGER: { label: "Gerente", class: "bg-blue-100 text-blue-700 border-blue-200",       icon: Shield },
+  USER:    { label: "Operacional", class: "bg-gray-100 text-gray-600 border-gray-200",   icon: User },
+};
 
 export default function UserTable({ users }: { users: any[] }) {
   const [isPending, startTransition] = useTransition();
@@ -30,14 +36,22 @@ export default function UserTable({ users }: { users: any[] }) {
         <tbody className="divide-y divide-gray-200">
           {users.map((user) => (
             <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-              <td className="px-6 py-4 font-medium text-gray-900 flex items-center gap-2">
+              <td className="px-6 py-4 font-medium text-gray-900">
                 {user.name}
-                {user.role === "ADMIN" && (
-                  <ShieldCheck className="h-4 w-4 text-blue-600" title="Administrador" />
-                )}
               </td>
-              <td className="px-6 py-4 text-gray-600">{user.username}</td>
-              <td className="px-6 py-4 text-gray-600">{user.role}</td>
+              <td className="px-6 py-4 text-gray-600 font-mono text-sm">{user.username}</td>
+              <td className="px-6 py-4">
+                {(() => {
+                  const cfg = ROLE_CONFIG[user.role] ?? ROLE_CONFIG.USER;
+                  const Icon = cfg.icon;
+                  return (
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${cfg.class}`}>
+                      <Icon className="h-3.5 w-3.5" />
+                      {cfg.label}
+                    </span>
+                  );
+                })()}
+              </td>
               <td className="px-6 py-4 text-right">
                 <div className="flex items-center justify-end gap-2">
                   <PasswordChangeModal userId={user.id} userName={user.name} />

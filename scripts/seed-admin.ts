@@ -2,7 +2,7 @@
 // Execute com: node --require ts-node/register scripts/seed-admin.ts
 // OU se quiser rodar via tsx: npx tsx scripts/seed-admin.ts
 
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -26,7 +26,7 @@ async function main() {
       name,
       username,
       password: hashedPassword,
-      role: "ADMIN",
+      role: Role.ADMIN,
     },
   });
 

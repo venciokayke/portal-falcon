@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { redirect } from "next/navigation";
 import UserTable from "./components/UserTable";
 import UserFormModal from "./components/UserFormModal";
 import { ShieldAlert, Users } from "lucide-react";
@@ -20,7 +19,7 @@ export default async function UsuariosConfigPage() {
         </div>
         <h1 className="text-2xl font-bold text-gray-900">Acesso Negado</h1>
         <p className="text-gray-500 mt-2 max-w-md">
-          Você não tem permissão para acessar as configurações de usuários. 
+          Você não tem permissão para acessar as configurações de usuários.
           Entre em contato com um administrador se acreditar que isso é um erro.
         </p>
       </div>

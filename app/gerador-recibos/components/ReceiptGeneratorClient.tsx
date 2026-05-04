@@ -24,10 +24,14 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
   const [selectedReceipts, setSelectedReceipts] = useState<Set<string>>(new Set());
 
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  const [manualName, setManualName] = useState("");
+  const [manualDocument, setManualDocument] = useState("");
   const [receiptValue, setReceiptValue] = useState("");
   const [receiptDescription, setReceiptDescription] = useState("Adiantamento Salarial");
   const [payingCompany, setPayingCompany] = useState("FALCON SERVIÇOS LTDA");
   const [receiptDate, setReceiptDate] = useState(new Date().toISOString().split('T')[0]);
+
+  const isManual = selectedEmployeeId === "__MANUAL__";
 
   const handleAddReceipt = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,16 +41,31 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
       return;
     }
 
-    const employee = employees.find(emp => emp.id === selectedEmployeeId);
-    if (!employee) return;
+    if (isManual && !manualName.trim()) {
+      alert("Informe o nome do recebedor.");
+      return;
+    }
+
+    let employeeName: string;
+    let document: string;
+
+    if (isManual) {
+      employeeName = manualName.trim();
+      document = manualDocument.trim();
+    } else {
+      const employee = employees.find(emp => emp.id === selectedEmployeeId);
+      if (!employee) return;
+      employeeName = employee.name;
+      document = employee.document || "";
+    }
 
     const newItem: ReceiptItem = {
       id: crypto.randomUUID(),
-      employeeName: employee.name,
-      document: employee.document || "",
+      employeeName,
+      document,
       value: Number(receiptValue),
       description: receiptDescription,
-      payingCompany: payingCompany,
+      payingCompany,
       date: receiptDate
     };
 
@@ -54,6 +73,8 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
 
     // Reset partial form
     setSelectedEmployeeId("");
+    setManualName("");
+    setManualDocument("");
     setReceiptValue("");
   };
 
@@ -139,7 +160,7 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
         <form onSubmit={handleAddReceipt} className="p-5">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div className="col-span-1 md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Funcionário</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Funcionário / Recebedor</label>
               <select
                 value={selectedEmployeeId}
                 onChange={e => setSelectedEmployeeId(e.target.value)}
@@ -147,10 +168,40 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
                 required
               >
                 <option value="">Selecione o colaborador...</option>
-                {employees.map(emp => (
-                  <option key={emp.id} value={emp.id}>{emp.name}</option>
-                ))}
+                <option value="__MANUAL__">✏️ --- INSERIR MANUALMENTE ---</option>
+                <optgroup label="Colaboradores Cadastrados">
+                  {employees.map(emp => (
+                    <option key={emp.id} value={emp.id}>{emp.name}</option>
+                  ))}
+                </optgroup>
               </select>
+
+              {/* Campos extras para inserção manual */}
+              {isManual && (
+                <div className="mt-3 grid grid-cols-2 gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div>
+                    <label className="block text-xs font-semibold text-amber-800 mb-1">Nome do Recebedor *</label>
+                    <input
+                      type="text"
+                      value={manualName}
+                      onChange={e => setManualName(e.target.value)}
+                      placeholder="Ex: Maria Oliveira"
+                      required
+                      className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none text-sm bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-amber-800 mb-1">CPF / CNPJ</label>
+                    <input
+                      type="text"
+                      value={manualDocument}
+                      onChange={e => setManualDocument(e.target.value)}
+                      placeholder="Ex: 000.000.000-00"
+                      className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none text-sm bg-white"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>

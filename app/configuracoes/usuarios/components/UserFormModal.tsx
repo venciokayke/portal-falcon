@@ -114,6 +114,19 @@ export default function UserFormModal() {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Nível de Acesso</label>
+                <select
+                  name="role"
+                  defaultValue="USER"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white transition-all"
+                >
+                  <option value="USER">USER — Operacional / DP</option>
+                  <option value="MANAGER">MANAGER — Gerência / Proprietário</option>
+                  <option value="ADMIN">ADMIN — Acesso Total</option>
+                </select>
+              </div>
+
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"

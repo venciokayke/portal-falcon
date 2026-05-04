@@ -32,28 +32,47 @@ enum RegistrationCompany {
   NAO_REGISTRADO
 }
 
+// Enum de papéis/permissões do sistema
+enum Role {
+  ADMIN    // Acesso total: CRUD de usuários, aprovação de folhas
+  MANAGER  // Gerência/Proprietário: aprova folhas, visualiza tudo
+  USER     // Operacional/DP: lança ponto, visualiza relatórios
+}
+
 model Employee {
-  id                   String       @id @default(uuid()) @db.Uuid
+  id                   String              @id @default(uuid()) @db.Uuid
   name                 String
-  isActive             Boolean      @default(true)
+  isActive             Boolean             @default(true)
   registrationCompany  RegistrationCompany @default(NAO_REGISTRADO)
   contractType         ContractType
   workSchedule         WorkSchedule
   startParity          StartParity
-  hourlyRate           Decimal      @db.Decimal(10, 2)
+  hourlyRate           Decimal             @db.Decimal(10, 2)
+
+  // Pagamento: PIX
   pixKey               String?
   pixType              String?
-  receivesVA           Boolean      @default(false)
-  receivesVT           Boolean      @default(false)
-  receivesIntervalHour Boolean      @default(false)
-  receivesNightHazard  Boolean      @default(false)
+
+  // Pagamento: Método (PIX | BANCARIA | ESPECIE)
+  paymentMethod        String?             @default("PIX")
+
+  // Pagamento: Transferência Bancária
+  bankName             String?
+  bankAgency           String?
+  bankAccount          String?
+
+  receivesVA           Boolean             @default(false)
+  receivesVT           Boolean             @default(false)
+  receivesIntervalHour Boolean             @default(false)
+  receivesNightHazard  Boolean             @default(false)
   workLocation         String?
   standardHours        String?
-  baseSalary           Decimal?     @db.Decimal(10, 2)
+  baseSalary           Decimal?            @db.Decimal(10, 2)
   document             String?
 
   shifts               Shift[]
   payrollReceipts      PayrollReceipt[]
+  monthlyPayrolls      MonthlyPayroll[]
 
   @@map("employees")
 }
@@ -72,20 +91,55 @@ model Shift {
 }
 
 model PayrollReceipt {
-  id                   String   @id @default(uuid()) @db.Uuid
-  employeeId           String   @db.Uuid
-  month                Int
-  year                 Int
-  contraCheque         Decimal  @db.Decimal(10, 2)
-  valeTransporte       Decimal  @db.Decimal(10, 2)
-  valoresExtras        Decimal  @db.Decimal(10, 2)
-  descontos            Decimal  @db.Decimal(10, 2)
-  observacoes          String?  @db.Text
-  total                Decimal  @db.Decimal(10, 2)
+  id           String  @id @default(uuid()) @db.Uuid
+  employeeId   String  @db.Uuid
+  month        Int
+  year         Int
+  contraCheque Decimal @db.Decimal(10, 2)
+  valeTransporte Decimal @db.Decimal(10, 2)
+  valoresExtras  Decimal @db.Decimal(10, 2)
+  descontos      Decimal @db.Decimal(10, 2)
+  observacoes    String? @db.Text
+  total          Decimal @db.Decimal(10, 2)
 
-  employee             Employee @relation(fields: [employeeId], references: [id])
+  employee     Employee @relation(fields: [employeeId], references: [id])
 
   @@map("payroll_receipts")
+}
+
+// Histórico de fechamento mensal de folha de pagamento
+model MonthlyPayroll {
+  id           String   @id @default(uuid()) @db.Uuid
+  employeeId   String   @db.Uuid
+  month        Int
+  year         Int
+
+  // Valores financeiros
+  baseValue    Decimal  @db.Decimal(10, 2) @default(0)
+  extras       Decimal  @db.Decimal(10, 2) @default(0) // Outras bonificações / Horas Extras
+  vtValue      Decimal  @db.Decimal(10, 2) @default(0) // Vale Transporte isolado
+  discounts    Decimal  @db.Decimal(10, 2) @default(0)
+  total        Decimal  @db.Decimal(10, 2) @default(0)
+  observations String?  @db.Text
+
+  // Controle de pagamento
+  isPaid       Boolean  @default(false)
+  paidAt       DateTime?
+
+  // Aprovação: relação opcional com SystemUser (MANAGER ou ADMIN)
+  approvedById String?  @db.Uuid
+  approvedAt   DateTime?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relações
+  employee     Employee   @relation(fields: [employeeId], references: [id])
+  approvedBy   SystemUser? @relation(fields: [approvedById], references: [id])
+
+  // Garante que só existe 1 registro por funcionário/mês/ano
+  @@unique([employeeId, month, year])
+  @@map("monthly_payrolls")
 }
 
 model SystemUser {
@@ -93,9 +147,12 @@ model SystemUser {
   name      String
   username  String   @unique
   password  String
-  role      String   @default("ADMIN")
+  role      Role     @default(USER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Folhas que este usuário aprovou
+  approvedPayrolls MonthlyPayroll[]
 
   @@map("system_users")
 }
