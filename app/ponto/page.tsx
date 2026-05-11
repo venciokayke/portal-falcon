@@ -2,6 +2,9 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { Clock, ChevronRight } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
+
 export default async function PontoSelectorPage() {
   const employees = await prisma.employee.findMany({
     where: { isActive: true },
@@ -30,9 +33,9 @@ export default async function PontoSelectorPage() {
             <div>
               <h3 className="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">{emp.name}</h3>
               <p className="text-sm text-gray-500 mt-0.5">
-                {({'CLT': 'CLT', 'HORISTA': 'Horista', 'PJ_FIXO': 'PJ Fixo', 'PJ_HORISTA': 'PJ Horista'} as Record<string, string>)[emp.contractType as string] ?? emp.contractType}
+                {({ 'CLT': 'CLT', 'HORISTA': 'Horista', 'PJ_FIXO': 'PJ Fixo', 'PJ_HORISTA': 'PJ Horista' } as Record<string, string>)[emp.contractType as string] ?? emp.contractType}
                 {' • '}
-                {({'FIXED_220': '220h Mensais', 'FIXED_180': '180h Mensais', 'SCALE_12X36': 'Escala 12x36', 'CUSTOM': 'Personalizada'} as Record<string, string>)[emp.workSchedule as string] ?? emp.workSchedule}
+                {({ 'FIXED_220': '220h Mensais', 'FIXED_180': '180h Mensais', 'SCALE_12X36': 'Escala 12x36', 'CUSTOM': 'Personalizada' } as Record<string, string>)[emp.workSchedule as string] ?? emp.workSchedule}
               </p>
             </div>
             <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />

@@ -6,3 +6,7 @@ README.md
 .next
 .git
 postgres-data
+.env
+.env.local
+.env.production
+.env.development

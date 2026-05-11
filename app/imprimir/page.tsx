@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import PrintClient from "./components/PrintClient";
 
+export const dynamic = "force-dynamic";
+
+
 export default async function ImprimirPage() {
   const employees = await prisma.employee.findMany({
     where: { isActive: true },

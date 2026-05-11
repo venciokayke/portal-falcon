@@ -4,6 +4,9 @@ import EmployeeFormModal from "./components/EmployeeFormModal";
 import { Users, ArchiveRestore } from "lucide-react";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
+
 export default async function ColaboradoresPage() {
   const employees = await prisma.employee.findMany({
     where: { isActive: true },
