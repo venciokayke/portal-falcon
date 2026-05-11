@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { saveShifts, getShifts, deleteShift } from "@/actions/shift";
-import { Calendar, MapPin, Plus, Trash2, Save, Clock, Printer } from "lucide-react";
+import { saveShifts, getShifts, deleteShift, updateSavedShift, createEmptyShift } from "@/actions/shift";
+import { Calendar, MapPin, Plus, Trash2, Clock, Printer, CheckCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 function getDaysInMonth(month: number, year: number) {
@@ -21,7 +21,9 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
 
   const [shifts, setShifts] = useState<Record<string, any[]>>({});
   const [savedShiftsList, setSavedShiftsList] = useState<any[]>([]);
+  const [savedEdits, setSavedEdits] = useState<Record<string, any>>({}); // local edits for saved shifts
   const [isSaving, setIsSaving] = useState(false);
+  const [isSynced, setIsSynced] = useState(true);
   const [isLoadingSaved, setIsLoadingSaved] = useState(false);
   const router = useRouter();
 
@@ -30,6 +32,7 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
     try {
       const data = await getShifts(employee.id, selectedMonth, selectedYear);
       setSavedShiftsList(data);
+      setSavedEdits({}); // reset local edits when reloading
     } catch (error) {
       console.error("Erro ao carregar turnos", error);
     } finally {
@@ -40,6 +43,15 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
   useEffect(() => {
     loadSavedShifts();
   }, [loadSavedShifts]);
+
+  // Navega de volta ao pressionar Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") router.push("/ponto");
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [router]);
 
   const calculateShiftHours = (checkIn: string, checkOut: string) => {
     if (!checkIn || !checkOut) return 0;
@@ -56,7 +68,7 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
     return (outMinutes - inMinutes) / 60;
   };
 
-  const totalWorkedHours = savedShiftsList.reduce((acc, shift) => acc + calculateShiftHours(shift.checkIn, shift.checkOut), 0);
+  const totalWorkedHours = Math.round(savedShiftsList.reduce((acc, shift) => acc + calculateShiftHours(shift.checkIn, shift.checkOut), 0));
 
   const daysCount = getDaysInMonth(selectedMonth, selectedYear);
   const daysArray = Array.from({ length: daysCount }, (_, i) => {
@@ -121,15 +133,22 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
     }
   }
 
-  const handleAddShift = (dateString: string) => {
-    const currentDayShifts = shifts[dateString] || [];
-    setShifts({
-      ...shifts,
-      [dateString]: [
-        ...currentDayShifts,
-        { id: Date.now().toString() + Math.random().toString(), location: "", checkIn: "", checkOut: "" }
-      ]
-    });
+  const handleAddShift = async (dateString: string) => {
+    setIsSaving(true);
+    setIsSynced(false);
+    try {
+      const newId = await createEmptyShift(employee.id, dateString);
+      // Add to savedShiftsList so it's treated as a saved (update) shift from now on
+      setSavedShiftsList(prev => [
+        ...prev,
+        { id: newId, referenceDate: new Date(`${dateString}T00:00:00Z`).toISOString(), location: "", checkIn: "", checkOut: "" }
+      ]);
+      setIsSynced(true);
+    } catch (e) {
+      console.error("Erro ao criar turno", e);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleUpdateShift = (dateString: string, id: string, field: string, value: string) => {
@@ -148,47 +167,40 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
     });
   };
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      const allShiftsToSave: any[] = [];
-      for (const [dateString, dayShifts] of Object.entries(shifts)) {
-        for (const shift of dayShifts) {
-          if (shift.location && shift.checkIn && shift.checkOut) {
-            allShiftsToSave.push({
-              referenceDate: dateString,
-              location: shift.location,
-              checkIn: shift.checkIn,
-              checkOut: shift.checkOut
-            });
-          }
-        }
-      }
-
-      if (allShiftsToSave.length === 0) {
-        alert("Nenhum turno completo (Local, Entrada e Saída) para salvar.");
-        setIsSaving(false);
-        return;
-      }
-
-      await saveShifts(employee.id, allShiftsToSave);
-      alert("Turnos salvos com sucesso!");
-      setShifts({});
-      loadSavedShifts();
-      router.refresh();
-    } catch (error) {
-      console.error(error);
-      alert("Erro ao salvar turnos.");
-    } finally {
+  const handleDeleteSavedShift = async (id: string) => {
+    if (confirm("Tem certeza que deseja apagar este turno do sistema?")) {
+      setIsSaving(true);
+      setIsSynced(false);
+      await deleteShift(id);
+      setSavedShiftsList(prev => prev.filter(s => s.id !== id));
+      setIsSynced(true);
       setIsSaving(false);
     }
   };
 
-  const handleDeleteSavedShift = async (id: string) => {
-    if (confirm("Tem certeza que deseja apagar este turno do sistema?")) {
-      await deleteShift(id);
-      loadSavedShifts();
-      router.refresh();
+  const handleUpdateSavedShiftField = (shiftId: string, field: string, value: string) => {
+    setSavedEdits(prev => ({
+      ...prev,
+      [shiftId]: { ...(prev[shiftId] || {}), [field]: value }
+    }));
+  };
+
+  const handleBlurSavedShift = async (shift: any) => {
+    const edits = savedEdits[shift.id];
+    if (!edits || Object.keys(edits).length === 0) return;
+    const referenceDate = new Date(shift.referenceDate);
+    const referenceDateStr = `${referenceDate.getUTCFullYear()}-${String(referenceDate.getUTCMonth() + 1).padStart(2, "0")}-${String(referenceDate.getUTCDate()).padStart(2, "0")}`;
+    setIsSaving(true);
+    setIsSynced(false);
+    try {
+      await updateSavedShift(shift.id, referenceDateStr, edits);
+      setSavedShiftsList(prev => prev.map(s => s.id === shift.id ? { ...s, ...edits } : s));
+      setSavedEdits(prev => { const next = { ...prev }; delete next[shift.id]; return next; });
+      setIsSynced(true);
+    } catch (e) {
+      console.error("Erro ao atualizar turno", e);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -247,7 +259,7 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
               ))}
             </select>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => {
                 setTimeout(() => window.print(), 100);
@@ -258,14 +270,20 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
               <Printer className="h-5 w-5" />
               Imprimir Lançamentos
             </button>
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm disabled:opacity-50"
-            >
-              <Save className="h-5 w-5" />
-              {isSaving ? "Salvando..." : "Salvar Novos Lançamentos"}
-            </button>
+            {/* Status de Sincronização */}
+            <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg">
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+                  <span className="text-sm text-blue-600 font-medium">Salvando...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <span className="text-sm text-gray-400">Sincronizado</span>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -295,29 +313,72 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
                 // Se estamos na impressão e o dia não tem turno salvo, podemos omitir a linha ou deixar em branco
                 // Para manter a grade completa de conferência igual à outra, deixaremos a linha com os espaços vazios.
 
+                const isPar = day % 2 === 0;
+                let isWorkDay = false;
+                
+                if (employee.workSchedule === 'SCALE_12X36') {
+                  if (employee.startParity === 'PAR' && isPar) isWorkDay = true;
+                  if (employee.startParity === 'IMPAR' && !isPar) isWorkDay = true;
+                } else {
+                  isWorkDay = !isWeekend;
+                }
+
+                const hasIncompleteShift = savedForDay.some(s => !s.checkOut) || dayShifts.some(s => s.location && s.checkIn && !s.checkOut);
+                
+                let rowBgClass = isWorkDay ? 'bg-slate-100' : 'bg-white';
+                if (hasIncompleteShift) {
+                  rowBgClass = 'bg-yellow-200';
+                }
+
                 return (
-                  <tr key={day} className={`transition-colors ${isWeekend ? 'bg-gray-50/80' : 'bg-white hover:bg-gray-50'}`}>
+                  <tr key={day} className={`transition-colors hover:bg-gray-50/80 ${rowBgClass}`}>
                     <td className="px-6 py-4 border-r border-gray-100 align-top">
                       <div className="flex flex-col">
                         <span className="font-semibold text-gray-900">{String(day).padStart(2, '0')}/{String(selectedMonth + 1).padStart(2, '0')}</span>
-                        <span className={`text-xs mt-0.5 ${isWeekend ? 'text-blue-600 font-medium' : 'text-gray-500'} capitalize`}>{dayOfWeek}</span>
+                        <span className={`text-xs mt-0.5 ${isWorkDay ? 'text-blue-600 font-medium' : 'text-gray-500'} capitalize`}>{dayOfWeek}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 align-top">
                       <div className="flex flex-col gap-3">
 
-                        {/* 1. Turnos Já Salvos (Histórico do dia) */}
-                        {savedForDay.map((shift) => (
+                        {/* 1. Turnos Já Salvos — editáveis inline */}
+                        {savedForDay.map((shift) => {
+                          const edits = savedEdits[shift.id] || {};
+                          const loc = edits.location !== undefined ? edits.location : shift.location;
+                          const ci = edits.checkIn !== undefined ? edits.checkIn : shift.checkIn;
+                          const co = edits.checkOut !== undefined ? edits.checkOut : shift.checkOut;
+                          return (
                           <div key={shift.id} className="flex flex-col lg:flex-row gap-3 items-start lg:items-center bg-green-50/50 p-3 rounded-lg border border-green-200 shadow-sm border-l-4 border-l-green-500">
-                            <div className="flex-1 w-full flex items-center gap-2">
-                              <MapPin className="h-4 w-4 text-green-600" />
-                              <span className="font-medium text-gray-800">{shift.location}</span>
+                            <div className="relative flex-1 w-full">
+                              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <MapPin className="h-4 w-4 text-green-600" />
+                              </div>
+                              <input
+                                type="text"
+                                value={loc}
+                                onChange={e => handleUpdateSavedShiftField(shift.id, "location", e.target.value)}
+                                onBlur={() => handleBlurSavedShift(shift)}
+                                placeholder="Local"
+                                className="w-full pl-9 pr-3 py-2 border border-green-200 rounded-md focus:ring-2 focus:ring-green-400 outline-none text-sm font-medium text-gray-800 bg-transparent transition-shadow hover:bg-white focus:bg-white"
+                              />
                             </div>
                             <div className="flex items-center gap-2 w-full lg:w-auto">
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white text-green-700 font-medium border border-green-200">
-                                <Clock className="h-3.5 w-3.5" />
-                                {shift.checkIn} <span className="text-gray-400 font-normal px-1">até</span> {shift.checkOut}
-                              </span>
+                              <Clock className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                              <input
+                                type="time"
+                                value={ci}
+                                onChange={e => handleUpdateSavedShiftField(shift.id, "checkIn", e.target.value)}
+                                onBlur={() => handleBlurSavedShift(shift)}
+                                className="px-2 py-1.5 border border-green-200 rounded-md focus:ring-2 focus:ring-green-400 outline-none text-sm font-medium text-gray-700 bg-transparent hover:bg-white focus:bg-white transition-shadow"
+                              />
+                              <span className="text-gray-400 font-medium px-0.5">até</span>
+                              <input
+                                type="time"
+                                value={co}
+                                onChange={e => handleUpdateSavedShiftField(shift.id, "checkOut", e.target.value)}
+                                onBlur={() => handleBlurSavedShift(shift)}
+                                className="px-2 py-1.5 border border-green-200 rounded-md focus:ring-2 focus:ring-green-400 outline-none text-sm font-medium text-gray-700 bg-transparent hover:bg-white focus:bg-white transition-shadow"
+                              />
                               <button
                                 onClick={() => handleDeleteSavedShift(shift.id)}
                                 className="p-2 ml-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
@@ -327,50 +388,11 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
                               </button>
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
 
-                        {/* 2. Formulário de Novos Turnos (Pendente de salvar) */}
-                        {dayShifts.map((shift) => (
-                          <div key={shift.id} className="flex flex-col lg:flex-row gap-3 items-start lg:items-center animate-in fade-in slide-in-from-left-2 duration-200 bg-white p-3 rounded-lg border border-gray-200 shadow-sm border-l-4 border-l-blue-500">
-                            <div className="relative flex-1 w-full">
-                              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <MapPin className="h-4 w-4 text-gray-400" />
-                              </div>
-                              <input
-                                type="text"
-                                value={shift.location}
-                                onChange={(e) => handleUpdateShift(dateString, shift.id, "location", e.target.value)}
-                                placeholder="Novo Local (Ex: Matriz)"
-                                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-shadow bg-blue-50/30"
-                              />
-                            </div>
-                            <div className="flex items-center gap-2 w-full lg:w-auto">
-                              <input
-                                type="time"
-                                value={shift.checkIn}
-                                onChange={(e) => handleUpdateShift(dateString, shift.id, "checkIn", e.target.value)}
-                                className="px-2 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none text-sm font-medium text-gray-700 transition-shadow bg-blue-50/30"
-                              />
-                              <span className="text-gray-400 font-medium px-1">até</span>
-                              <input
-                                type="time"
-                                value={shift.checkOut}
-                                onChange={(e) => handleUpdateShift(dateString, shift.id, "checkOut", e.target.value)}
-                                className="px-2 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none text-sm font-medium text-gray-700 transition-shadow bg-blue-50/30"
-                              />
-                              <button
-                                onClick={() => handleRemoveShift(dateString, shift.id)}
-                                className="p-2 ml-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
-                                title="Cancelar Lançamento"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-
-                        {/* Mensagem Vazia se não tiver nenhum dos dois */}
-                        {savedForDay.length === 0 && dayShifts.length === 0 && (
+                        {/* Mensagem Vazia se não tiver nenhum turno */}
+                        {savedForDay.length === 0 && (
                           <span className="text-gray-400 text-sm italic py-1 block">Nenhum turno.</span>
                         )}
                       </div>
@@ -451,12 +473,12 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
                       </td>
                       <td className="px-1 py-1 border-r border-black text-center align-middle">
                         <div className="flex flex-col gap-1">
-                          {savedForDay.length > 0 ? savedForDay.map(s => <span key={s.id}>{s.checkIn}</span>) : <span className="text-transparent">.</span>}
+                          {savedForDay.length > 0 ? savedForDay.map(s => <span key={s.id}>{s.checkIn || "..."}</span>) : <span className="text-transparent">.</span>}
                         </div>
                       </td>
                       <td className="px-1 py-1 border-r border-black text-center align-middle">
                         <div className="flex flex-col gap-1">
-                          {savedForDay.length > 0 ? savedForDay.map(s => <span key={s.id}>{s.checkOut}</span>) : <span className="text-transparent">.</span>}
+                          {savedForDay.length > 0 ? savedForDay.map(s => <span key={s.id}>{s.checkOut || "..."}</span>) : <span className="text-transparent">.</span>}
                         </div>
                       </td>
                       <td className="px-1 py-1 border-r border-black text-center align-middle font-bold">

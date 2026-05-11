@@ -13,7 +13,7 @@ export default async function ColaboradoresArquivadosPage() {
 
   const serializedEmployees = employees.map((emp) => ({
     ...emp,
-    hourlyRate: emp.hourlyRate.toNumber(),
+    hourlyRate: emp.hourlyRate ? emp.hourlyRate.toNumber() : null,
     baseSalary: emp.baseSalary ? emp.baseSalary.toNumber() : null,
   }));
 

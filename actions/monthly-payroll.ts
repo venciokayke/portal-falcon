@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { calculatePayroll } from "@/utils/calculatePayroll";
+import { getGlobalRates } from "@/actions/config";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
@@ -68,28 +69,33 @@ export async function generateMonthPreview(month: number, year: number) {
   const nextYear = month === 11 ? year + 1 : year;
   const endDate = new Date(Date.UTC(nextYear, nextMonth, 1));
 
-  const employees = await prisma.employee.findMany({
-    where: { isActive: true },
-    include: {
-      shifts: {
-        where: {
-          referenceDate: { gte: startDate, lt: endDate },
+  const [employees, globalRates] = await Promise.all([
+    prisma.employee.findMany({
+      where: { isActive: true },
+      include: {
+        shifts: {
+          where: {
+            referenceDate: { gte: startDate, lt: endDate },
+          },
         },
       },
-    },
-    orderBy: { name: "asc" },
-  });
+      orderBy: { name: "asc" },
+    }),
+    getGlobalRates(),
+  ]);
 
   for (const emp of employees) {
-    const payroll = calculatePayroll(emp, emp.shifts, month, year);
+    const payroll = calculatePayroll(emp, emp.shifts, month, year, globalRates.extraHourRate);
 
     let baseValue = 0;
     if (emp.contractType === "PJ_FIXO") {
       baseValue = Number(emp.baseSalary) || 0;
     } else if (emp.contractType === "CLT") {
-      baseValue = Number(emp.hourlyRate) * 220;
+      const rate = emp.hourlyRate ? Number(emp.hourlyRate) : globalRates.extraHourRate;
+      baseValue = rate * 220;
     } else {
-      baseValue = Number(emp.hourlyRate) * payroll.totalWorkedHours;
+      const rate = emp.hourlyRate ? Number(emp.hourlyRate) : globalRates.workedHourRate;
+      baseValue = rate * payroll.totalWorkedHours;
     }
 
     const extras = payroll.extraValue || 0;

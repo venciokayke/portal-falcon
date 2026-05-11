@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { calculatePayroll } from "@/utils/calculatePayroll";
+import { getGlobalRates } from "@/actions/config";
 import { revalidatePath } from "next/cache";
 
 export async function getPayrollData(month: number, year: number) {
@@ -10,42 +11,36 @@ export async function getPayrollData(month: number, year: number) {
   const nextYear = month === 11 ? year + 1 : year;
   const endDate = new Date(Date.UTC(nextYear, nextMonth, 1));
 
-  const employees = await prisma.employee.findMany({
-    where: { isActive: true },
-    include: {
-      shifts: {
-        where: {
-          referenceDate: {
-            gte: startDate,
-            lt: endDate,
-          }
+  const [employees, savedReceipts, globalRates] = await Promise.all([
+    prisma.employee.findMany({
+      where: { isActive: true },
+      include: {
+        shifts: {
+          where: { referenceDate: { gte: startDate, lt: endDate } }
         }
-      }
-    },
-    orderBy: { name: "asc" }
-  });
-
-  // Também podemos buscar se já existe um fechamento salvo para esse mês, mas
-  // para simplificar e garantir dados vivos da função utilitária sempre que a tela abrir,
-  // recarregamos os cálculos dinâmicos. (Opcional: mesclar com o PayrollReceipt salvo).
-  // Vamos buscar os salvos para priorizar a edição manual!
-  const savedReceipts = await prisma.payrollReceipt.findMany({
-    where: { month, year }
-  });
+      },
+      orderBy: { name: "asc" }
+    }),
+    prisma.payrollReceipt.findMany({ where: { month, year } }),
+    getGlobalRates(),
+  ]);
 
   const savedMap = new Map();
   savedReceipts.forEach(r => savedMap.set(r.employeeId, r));
 
   return employees.map(emp => {
-    const payroll = calculatePayroll(emp, emp.shifts, month, year);
+    const payroll = calculatePayroll(emp, emp.shifts, month, year, globalRates.extraHourRate);
     
     let contraCheque = 0;
     if (emp.contractType === "PJ_FIXO") {
       contraCheque = Number(emp.baseSalary) || 0;
     } else if (emp.contractType === "CLT") {
-      contraCheque = Number(emp.hourlyRate) * 220; 
+      // CLT: taxa global de hora extra para base
+      contraCheque = (emp.hourlyRate ? Number(emp.hourlyRate) : globalRates.extraHourRate) * 220;
     } else {
-      contraCheque = Number(emp.hourlyRate) * payroll.totalWorkedHours;
+      // HORISTA / PJ_HORISTA / NAO_REGISTRADO: taxa global de hora trabalhada
+      const rate = emp.hourlyRate ? Number(emp.hourlyRate) : globalRates.workedHourRate;
+      contraCheque = rate * payroll.totalWorkedHours;
     }
 
     const saved = savedMap.get(emp.id);

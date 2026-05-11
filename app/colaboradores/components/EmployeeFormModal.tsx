@@ -104,13 +104,13 @@ export default function EmployeeFormModal({
     const bankAgency = (formData.get("bankAgency") as string)?.trim();
     const bankAccount = (formData.get("bankAccount") as string)?.trim();
 
-    if ((ct === "CLT" || ct === "PJ_FIXO") && baseSalary <= 0) {
+    if (ct === "PJ_FIXO" && baseSalary <= 0) {
       errors.baseSalary = true;
-      messages.push("Salário Base deve ser maior que zero");
+      messages.push("PJ Fixo exige um Salário Base maior que zero.");
     }
-    if ((ct === "HORISTA" || ct === "PJ_HORISTA") && hourlyRate <= 0) {
+    if ((ct === "HORISTA" || ct === "PJ_HORISTA") && hourlyRate < 0) {
       errors.hourlyRate = true;
-      messages.push("Valor da Hora deve ser maior que zero");
+      messages.push("Valor da Hora não pode ser negativo");
     }
 
     if (pm === "PIX") {
@@ -277,22 +277,62 @@ export default function EmployeeFormModal({
                     </select>
                   </div>
                   <div>
-                    {isPJFix ? (
+                    {/* CLT: apenas taxa de hora extra como exceção */}
+                    {contractType === "CLT" && (
                       <>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Salário Base (R$)</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Taxa hora extra <span className="text-xs text-gray-400 font-normal">(Exceção — opcional)</span>
+                        </label>
+                        <input name="hourlyRate" defaultValue={employee?.hourlyRate || ""} type="number"
+                          step="0.01" min="0" className={inputClass()}
+                          placeholder="Vazio = usa taxa global" />
+                        <input type="hidden" name="baseSalary" value="" />
+                        <p className="text-xs text-gray-400 mt-1">Salário calculado pela contabilidade.</p>
+                      </>
+                    )}
+
+                    {/* HORISTA / PJ_HORISTA: taxa por hora como exceção */}
+                    {(contractType === "HORISTA" || contractType === "PJ_HORISTA") && (
+                      <>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Taxa hora trabalhada <span className="text-xs text-gray-400 font-normal">(Exceção — opcional)</span>
+                        </label>
+                        <input name="hourlyRate" defaultValue={employee?.hourlyRate || ""} type="number"
+                          step="0.01" min="0" className={inputClass()}
+                          placeholder="Vazio = usa taxa global" />
+                        <input type="hidden" name="baseSalary" value="" />
+                      </>
+                    )}
+
+                    {/* PJ_FIXO: salário base obrigatório */}
+                    {contractType === "PJ_FIXO" && (
+                      <>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Salário Base (R$) *</label>
                         <input name="baseSalary" defaultValue={employee?.baseSalary || ""} type="number"
                           step="0.01" min="0.01" className={inputClass(fieldErrors.baseSalary)} placeholder="2000.00" />
-                        <input type="hidden" name="hourlyRate" value="0" />
+                        <input type="hidden" name="hourlyRate" value="" />
                         {fieldErrors.baseSalary && <p className="text-xs text-red-500 mt-1">Campo obrigatório</p>}
                       </>
-                    ) : (
-                      <>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Valor da Hora (R$)</label>
-                        <input name="hourlyRate" defaultValue={employee?.hourlyRate || ""} type="number"
-                          step="0.01" min="0.01" className={inputClass(fieldErrors.hourlyRate)} placeholder="0.00" />
-                        <input type="hidden" name="baseSalary" value="0" />
-                        {fieldErrors.hourlyRate && <p className="text-xs text-red-500 mt-1">Campo obrigatório</p>}
-                      </>
+                    )}
+
+                    {/* CUSTOM (NAO_REGISTRADO): ambos opcionais */}
+                    {contractType === "CUSTOM" && (
+                      <div className="space-y-2">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Valor Fixo (R$) <span className="text-xs text-gray-400 font-normal">(opcional)</span>
+                          </label>
+                          <input name="baseSalary" defaultValue={employee?.baseSalary || ""} type="number"
+                            step="0.01" min="0" className={inputClass()} placeholder="Para situações de pagamento fixo" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Taxa hora <span className="text-xs text-gray-400 font-normal">(opcional)</span>
+                          </label>
+                          <input name="hourlyRate" defaultValue={employee?.hourlyRate || ""} type="number"
+                            step="0.01" min="0" className={inputClass()} placeholder="Vazio = usa taxa global" />
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>

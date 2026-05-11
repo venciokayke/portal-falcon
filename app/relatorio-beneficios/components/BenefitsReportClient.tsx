@@ -21,6 +21,8 @@ export default function BenefitsReportClient({
   initialData: EmployeeBenefit[],
   availableExceptions: { id: string, name: string, receivesVA: boolean, receivesVT: boolean }[]
 }) {
+  const [vaRate, setVaRate] = useState(26.00);
+  const [vtRate, setVtRate] = useState(8.60);
   const [data, setData] = useState<EmployeeBenefit[]>(initialData);
   const [exceptions, setExceptions] = useState(availableExceptions);
   const [selectedException, setSelectedException] = useState("");
@@ -29,22 +31,29 @@ export default function BenefitsReportClient({
     setData((prev) =>
       prev.map((emp) => {
         if (emp.id !== id) return emp;
-
         const updated = { ...emp, [field]: value };
-
-        // Recalculate if UNID changed
-        if (field === "vaUnid") {
-          const num = parseFloat(value) || 0;
-          updated.vaValue = (num * 26.0).toFixed(2);
-        }
-        if (field === "vtUnid") {
-          const num = parseFloat(value) || 0;
-          updated.vtValue = (num * 8.6).toFixed(2);
-        }
-
+        if (field === "vaUnid") updated.vaValue = ((parseFloat(value) || 0) * vaRate).toFixed(2);
+        if (field === "vtUnid") updated.vtValue = ((parseFloat(value) || 0) * vtRate).toFixed(2);
         return updated;
       })
     );
+  };
+
+  // Recalculate all values when a global rate changes
+  const handleRateChange = (type: "va" | "vt", newRate: number) => {
+    if (type === "va") {
+      setVaRate(newRate);
+      setData(prev => prev.map(emp => ({
+        ...emp,
+        vaValue: emp.receivesVA ? ((parseFloat(emp.vaUnid) || 0) * newRate).toFixed(2) : emp.vaValue
+      })));
+    } else {
+      setVtRate(newRate);
+      setData(prev => prev.map(emp => ({
+        ...emp,
+        vtValue: emp.receivesVT ? ((parseFloat(emp.vtUnid) || 0) * newRate).toFixed(2) : emp.vtValue
+      })));
+    }
   };
 
   const handlePrint = () => {
@@ -132,6 +141,29 @@ export default function BenefitsReportClient({
             <p className="text-2xl font-black text-blue-700 print:text-black">R$ {generalTotal.toFixed(2)}</p>
           </div>
         </div>
+
+        {/* Taxas Globais (editáveis, ocultas na impressão) */}
+        <div className="mt-4 pt-4 border-t border-gray-200 flex flex-wrap gap-4 print:hidden">
+          <p className="text-sm text-gray-500 font-medium self-center">Taxas unitárias:</p>
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-gray-600 font-medium">VA (R$/unidade):</span>
+            <input
+              type="number" step="0.01" min="0"
+              value={vaRate}
+              onChange={e => handleRateChange("va", parseFloat(e.target.value) || 0)}
+              className="w-24 px-2 py-1 border border-amber-300 bg-amber-50 rounded-md focus:ring-2 focus:ring-amber-400 outline-none text-sm font-semibold text-right"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-gray-600 font-medium">VT (R$/unidade):</span>
+            <input
+              type="number" step="0.01" min="0"
+              value={vtRate}
+              onChange={e => handleRateChange("vt", parseFloat(e.target.value) || 0)}
+              className="w-24 px-2 py-1 border border-green-300 bg-green-50 rounded-md focus:ring-2 focus:ring-green-400 outline-none text-sm font-semibold text-right"
+            />
+          </label>
+        </div>
       </div>
 
       {/* Tabela de Benefícios */}
@@ -187,39 +219,61 @@ export default function BenefitsReportClient({
                   <td className="px-4 py-2 border-r border-gray-200 font-medium text-gray-900 truncate max-w-[250px]" title={emp.name}>
                     {emp.name}
                   </td>
+
+                  {/* VA UNID */}
                   <td className="px-2 py-1 border-r border-gray-200">
-                    <input
-                      type="number"
-                      value={emp.vaUnid}
-                      onChange={(e) => handleUpdate(emp.id, "vaUnid", e.target.value)}
-                      className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:border-none print:p-0 print:focus:ring-0 text-center"
-                    />
+                    {emp.receivesVA ? (
+                      <input
+                        type="number"
+                        value={emp.vaUnid}
+                        onChange={(e) => handleUpdate(emp.id, "vaUnid", e.target.value)}
+                        className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:border-none print:p-0 text-center"
+                      />
+                    ) : (
+                      <span className="block text-center text-gray-300 font-medium select-none">—</span>
+                    )}
                   </td>
+
+                  {/* VALOR V.A. */}
                   <td className="px-2 py-1 border-r border-gray-200">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={emp.vaValue}
-                      onChange={(e) => handleUpdate(emp.id, "vaValue", e.target.value)}
-                      className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none font-medium print:border-none print:p-0 print:focus:ring-0 text-right"
-                    />
+                    {emp.receivesVA ? (
+                      <input
+                        type="number" step="0.01"
+                        value={emp.vaValue}
+                        onChange={(e) => handleUpdate(emp.id, "vaValue", e.target.value)}
+                        className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none font-medium print:border-none print:p-0 text-right"
+                      />
+                    ) : (
+                      <span className="block text-center text-gray-300 font-medium select-none">—</span>
+                    )}
                   </td>
+
+                  {/* VT UNID */}
                   <td className="px-2 py-1 border-r border-gray-200">
-                    <input
-                      type="number"
-                      value={emp.vtUnid}
-                      onChange={(e) => handleUpdate(emp.id, "vtUnid", e.target.value)}
-                      className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:border-none print:p-0 print:focus:ring-0 text-center"
-                    />
+                    {emp.receivesVT ? (
+                      <input
+                        type="number"
+                        value={emp.vtUnid}
+                        onChange={(e) => handleUpdate(emp.id, "vtUnid", e.target.value)}
+                        className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:border-none print:p-0 text-center"
+                      />
+                    ) : (
+                      <span className="block text-center text-gray-300 font-medium select-none">—</span>
+                    )}
                   </td>
+
+                  {/* VALOR V.T. */}
                   <td className="px-2 py-1">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={emp.vtValue}
-                      onChange={(e) => handleUpdate(emp.id, "vtValue", e.target.value)}
-                      className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none font-medium print:border-none print:p-0 print:focus:ring-0 text-right"
-                    />
+                    {emp.receivesVT ? (
+                      <input
+                        type="number" step="0.01"
+                        value={emp.vtValue}
+                        onChange={(e) => handleUpdate(emp.id, "vtValue", e.target.value)}
+                        className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none font-medium print:border-none print:p-0 text-right"
+                      />
+                    ) : (
+                      <span className="block text-center text-gray-300 font-medium select-none">—</span>
+                    )}
                   </td>
                 </tr>
               ))}

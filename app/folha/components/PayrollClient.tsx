@@ -437,6 +437,16 @@ export default function PayrollClient() {
           >
             <Printer className="h-4 w-4" /> Imprimir
           </button>
+          {/* Sincroniza funcionários cadastrados depois da prévia sem perder dados existentes */}
+          <button
+            onClick={handleGenerate}
+            disabled={isGenerating || isLoading}
+            title="Adiciona à folha funcionários que foram cadastrados após a geração da prévia. Não sobrescreve dados já editados."
+            className="flex items-center gap-2 border border-dashed border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {isGenerating ? "Sincronizando..." : "Sincronizar Funcionários"}
+          </button>
           {rows.length > 0 && (
             <button
               onClick={handleSave}
@@ -448,6 +458,7 @@ export default function PayrollClient() {
             </button>
           )}
         </div>
+
       </div>
 
       {/* ── Conteúdo ── */}

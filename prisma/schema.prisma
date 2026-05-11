@@ -47,7 +47,7 @@ model Employee {
   contractType         ContractType
   workSchedule         WorkSchedule
   startParity          StartParity
-  hourlyRate           Decimal             @db.Decimal(10, 2)
+  hourlyRate           Decimal?            @db.Decimal(10, 2) // Exceção individual; se nulo, usa taxa global
 
   // Pagamento: PIX
   pixKey               String?
@@ -82,8 +82,8 @@ model Shift {
   employeeId    String   @db.Uuid
   referenceDate DateTime @db.Date
   location      String
-  checkIn       DateTime
-  checkOut      DateTime
+  checkIn       DateTime?
+  checkOut      DateTime?
 
   employee      Employee @relation(fields: [employeeId], references: [id])
 
@@ -155,4 +155,12 @@ model SystemUser {
   approvedPayrolls MonthlyPayroll[]
 
   @@map("system_users")
+}
+// Configurações globais do sistema (chave-valor)
+model SystemConfig {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("system_config")
 }

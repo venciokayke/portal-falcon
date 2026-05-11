@@ -61,13 +61,7 @@ function validateEmployeeData(data: ReturnType<typeof parseEmployeeForm>) {
     }
   }
 
-  if (data.contractType === "HORISTA" || data.contractType === "PJ_HORISTA") {
-    if (!data.hourlyRate || data.hourlyRate <= 0) {
-      errors.push(
-        `Contrato ${data.contractType === "HORISTA" ? "Horista" : "PJ Horista"} exige um Valor da Hora maior que zero.`
-      );
-    }
-  }
+  // hourlyRate agora é opcional (exceção individual); usa taxa global se vazio
 
   // Trava NAO_REGISTRADO x CLT
   if (data.registrationCompany === "NAO_REGISTRADO" && data.contractType === "CLT") {
@@ -113,7 +107,7 @@ export async function addEmployee(formData: FormData) {
       workSchedule: data.workSchedule,
       startParity: data.startParity,
       registrationCompany: data.registrationCompany,
-      hourlyRate: data.hourlyRateStr || "0",
+      hourlyRate: data.hourlyRateStr && Number(data.hourlyRateStr) > 0 ? data.hourlyRateStr : null,
       baseSalary: data.baseSalaryStr || null,
       paymentMethod: data.paymentMethod,
       // PIX
@@ -171,7 +165,7 @@ export async function updateEmployee(id: string, formData: FormData) {
       workSchedule: data.workSchedule,
       startParity: data.startParity,
       registrationCompany: data.registrationCompany,
-      hourlyRate: data.hourlyRateStr || "0",
+      hourlyRate: data.hourlyRateStr && Number(data.hourlyRateStr) > 0 ? data.hourlyRateStr : null,
       baseSalary: data.baseSalaryStr || null,
       paymentMethod: data.paymentMethod,
       // PIX

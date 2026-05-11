@@ -85,11 +85,15 @@ export default function AccountingReportClient({ data }: { data: EmployeeData[] 
                   {emp.standardHours}
                 </td>
                 <td className="px-2 py-1 border-r border-gray-200">
-                  <input
-                    type="text"
-                    defaultValue={emp.intervalarValue}
-                    className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none font-medium print:border-none print:p-0 print:focus:ring-0 text-center"
-                  />
+                  {emp.intervalarValue === "NÃO" ? (
+                    <span className="block text-center font-semibold text-gray-400 py-1">NÃO</span>
+                  ) : (
+                    <input
+                      type="text"
+                      defaultValue={emp.intervalarValue}
+                      className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none font-medium print:border-none print:p-0 print:focus:ring-0 text-center"
+                    />
+                  )}
                 </td>
                 <td className="px-2 py-1 border-r border-gray-200">
                   <input

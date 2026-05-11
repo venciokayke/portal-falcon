@@ -54,8 +54,11 @@ export function calculatePayroll(
   employee: Employee,
   shifts: Shift[],
   month: number, // 0-indexed (0 = Jan, 11 = Dez)
-  year: number
+  year: number,
+  globalExtraHourRate: number = 13.00 // Taxa global; employee.hourlyRate sobrescreve se definida
 ): PayrollResult {
+  // Taxa efetiva: usa a exceção individual se existir, caso contrário usa a global
+  const effectiveExtraRate = employee.hourlyRate ? Number(employee.hourlyRate) : globalExtraHourRate;
   // 1. Horas Base Dinâmicas
   const expectedDaysCurrentMonth = getExpectedWorkDays(year, month, employee.workSchedule, employee.startParity);
   
@@ -75,9 +78,11 @@ export function calculatePayroll(
   const workedDaysSet = new Set<string>();
 
   for (const shift of shifts) {
-    const minutes = differenceInMinutes(new Date(shift.checkOut), new Date(shift.checkIn));
-    if (minutes > 0) {
-      totalWorkedMinutes += minutes;
+    if (shift.checkIn && shift.checkOut) {
+      const minutes = differenceInMinutes(shift.checkOut, shift.checkIn);
+      if (minutes > 0) {
+        totalWorkedMinutes += minutes;
+      }
     }
     
     // Armazena a data lógica para saber que o funcionário compareceu naquele dia
@@ -95,8 +100,8 @@ export function calculatePayroll(
 
   // Saldo de Extras (Trabalhadas - baseHours)
   const extraHoursBalance = Math.max(0, totalWorkedHours - baseHours);
-  // Valor extra = Saldo * 13.00
-  const extraValue = extraHoursBalance * 13.00;
+  // Valor extra = Saldo * taxa efetiva
+  const extraValue = extraHoursBalance * effectiveExtraRate;
 
   // 3. Benefícios (VA/VT) com Faltas
   // Faltas = Dias Previstos do MÊS ATUAL menos os Dias Únicos Trabalhados (workedDaysSet.size)
@@ -117,7 +122,7 @@ export function calculatePayroll(
 
   return {
     baseHours,
-    totalWorkedHours: Number(totalWorkedHours.toFixed(2)),
+    totalWorkedHours: Math.round(totalWorkedHours),
     intervalHoursAdded,
     extraHoursBalance: Number(extraHoursBalance.toFixed(2)),
     extraValue: Number(extraValue.toFixed(2)),

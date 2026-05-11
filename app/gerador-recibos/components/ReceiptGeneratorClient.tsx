@@ -31,7 +31,11 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
   const [payingCompany, setPayingCompany] = useState("FALCON SERVIÇOS LTDA");
   const [receiptDate, setReceiptDate] = useState(new Date().toISOString().split('T')[0]);
 
+  const [manualPayerName, setManualPayerName] = useState("");
+  const [manualPayerDocument, setManualPayerDocument] = useState("");
+
   const isManual = selectedEmployeeId === "__MANUAL__";
+  const isManualPayer = payingCompany === "SÓCIO / PESSOA FÍSICA";
 
   const handleAddReceipt = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +47,11 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
 
     if (isManual && !manualName.trim()) {
       alert("Informe o nome do recebedor.");
+      return;
+    }
+
+    if (isManualPayer && !manualPayerName.trim()) {
+      alert("Informe o nome do pagador (Sócio/Pessoa Física).");
       return;
     }
 
@@ -65,7 +74,9 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
       document,
       value: Number(receiptValue),
       description: receiptDescription,
-      payingCompany,
+      payingCompany: isManualPayer && manualPayerName.trim()
+        ? `${manualPayerName.trim()}${manualPayerDocument.trim() ? ` (${manualPayerDocument.trim()})` : ""}`
+        : payingCompany,
       date: receiptDate
     };
 
@@ -75,6 +86,8 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
     setSelectedEmployeeId("");
     setManualName("");
     setManualDocument("");
+    setManualPayerName("");
+    setManualPayerDocument("");
     setReceiptValue("");
   };
 
@@ -168,7 +181,7 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
                 required
               >
                 <option value="">Selecione o colaborador...</option>
-                <option value="__MANUAL__">✏️ --- INSERIR MANUALMENTE ---</option>
+                <option value="__MANUAL__">--- INSERIR MANUALMENTE ---</option>
                 <optgroup label="Colaboradores Cadastrados">
                   {employees.map(emp => (
                     <option key={emp.id} value={emp.id}>{emp.name}</option>
@@ -241,6 +254,33 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
                 <option value="FALCON MONITORAMENTO LTDA">FALCON MONITORAMENTO LTDA</option>
                 <option value="SÓCIO / PESSOA FÍSICA">SÓCIO / PESSOA FÍSICA</option>
               </select>
+
+              {/* Campos extras para pagador manual */}
+              {isManualPayer && (
+                <div className="mt-3 grid grid-cols-2 gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div>
+                    <label className="block text-xs font-semibold text-blue-800 mb-1">Nome do Pagador *</label>
+                    <input
+                      type="text"
+                      value={manualPayerName}
+                      onChange={e => setManualPayerName(e.target.value)}
+                      placeholder="Ex: João da Silva"
+                      required
+                      className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none text-sm bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-blue-800 mb-1">CPF / CNPJ</label>
+                    <input
+                      type="text"
+                      value={manualPayerDocument}
+                      onChange={e => setManualPayerDocument(e.target.value)}
+                      placeholder="Ex: 000.000.000-00"
+                      className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none text-sm bg-white"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="col-span-1 md:col-span-2">
