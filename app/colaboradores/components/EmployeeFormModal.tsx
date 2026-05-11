@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, X, AlertCircle, CreditCard, Landmark, Banknote } from "lucide-react";
+import { Plus, X, AlertCircle, CreditCard, Landmark, Banknote, UserCircle, Briefcase, AlertTriangle, Info } from "lucide-react";
 import { addEmployee, updateEmployee } from "@/actions/employee";
+import { AlertModal } from "@/components/ui/AlertModal";
 
 type FieldErrors = Partial<Record<
   "baseSalary" | "hourlyRate" | "pixType" | "pixKey" | "bankName" | "bankAgency" | "bankAccount",
@@ -51,10 +52,10 @@ export default function EmployeeFormModal({
   const [paymentMethod, setPaymentMethod] = useState<string>(
     employee?.paymentMethod || "PIX"
   );
-  const [toastError, setToastError] = useState<string | null>(null);
+  const [errorModal, setErrorModal] = useState<{isOpen: boolean; title: string; message: string}>({isOpen: false, title: "", message: ""});
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
-  const clearErrors = () => { setToastError(null); setFieldErrors({}); };
+  const clearErrors = () => { setFieldErrors({}); };
 
   const handleContractChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
@@ -137,7 +138,7 @@ export default function EmployeeFormModal({
 
     if (!valid) {
       setFieldErrors(errors);
-      setToastError(`⚠️ Atenção: ${message}.`);
+      setErrorModal({ isOpen: true, title: "Atenção", message: message || "Preencha os campos obrigatórios." });
       if (hasFinancialError(errors)) setActiveTab("financial");
       return;
     }
@@ -160,7 +161,7 @@ export default function EmployeeFormModal({
         setReceivesNightHazard(false);
       }
     } catch (err: any) {
-      setToastError(`⚠️ ${err.message}`);
+      setErrorModal({ isOpen: true, title: "Erro ao salvar", message: err.message });
     }
   };
 
@@ -195,16 +196,13 @@ export default function EmployeeFormModal({
               </button>
             </div>
 
-            {/* Toast de Erro */}
-            {toastError && (
-              <div className="mx-4 mt-3 flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm animate-in fade-in slide-in-from-top-2 duration-200">
-                <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-red-500" />
-                <span className="flex-1">{toastError}</span>
-                <button type="button" onClick={() => setToastError(null)} className="text-red-400 hover:text-red-600">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            )}
+            <AlertModal 
+              isOpen={errorModal.isOpen} 
+              onClose={() => setErrorModal(prev => ({ ...prev, isOpen: false }))}
+              title={errorModal.title}
+              message={errorModal.message}
+              type="error"
+            />
 
             {/* Abas */}
             <div className="flex border-b border-gray-200">
@@ -250,10 +248,10 @@ export default function EmployeeFormModal({
                     <option value="NAO_REGISTRADO">Não Registrado</option>
                   </select>
                   {registrationCompany === "NAO_REGISTRADO" && (
-                    <p className="mt-1 text-xs text-amber-600">⚠️ Não registrados não podem ter contrato CLT.</p>
+                    <p className="mt-1 text-xs text-amber-600 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Não registrados não podem ter contrato CLT.</p>
                   )}
                   {(registrationCompany === "FALCON_SERVICE" || registrationCompany === "FALCON_MONITORAMENTO") && (
-                    <p className="mt-1 text-xs text-blue-600">ℹ️ Colaboradores registrados devem ser obrigatoriamente CLT.</p>
+                    <p className="mt-1 text-xs text-blue-600 flex items-center gap-1"><Info className="w-3 h-3" /> Colaboradores registrados devem ser obrigatoriamente CLT.</p>
                   )}
                 </div>
 

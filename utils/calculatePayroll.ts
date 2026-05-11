@@ -28,7 +28,10 @@ function getExpectedWorkDays(
   const daysInMonth = getDaysInMonth(new Date(year, month));
   const today = new Date();
   const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
-  
+  if (workSchedule === "CUSTOM") {
+    return 0; // Horistas e PJ não têm dias úteis fixos predefinidos, então não geram faltas
+  }
+
   if (workSchedule === "SCALE_12X36") {
     let expectedDays = 0;
     for (let day = 1; day <= daysInMonth; day++) {

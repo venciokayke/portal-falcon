@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Printer, Plus, Trash2, ReceiptText, CheckSquare, XSquare } from "lucide-react";
+import { AlertModal } from "@/components/ui/AlertModal";
 
 type EmployeeMin = {
   id: string;
@@ -30,6 +31,9 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
   const [receiptDescription, setReceiptDescription] = useState("Adiantamento Salarial");
   const [payingCompany, setPayingCompany] = useState("FALCON SERVIÇOS LTDA");
   const [receiptDate, setReceiptDate] = useState(new Date().toISOString().split('T')[0]);
+  const [errorModal, setErrorModal] = useState<{isOpen: boolean; title: string; message: string}>({
+    isOpen: false, title: "", message: ""
+  });
 
   const [manualPayerName, setManualPayerName] = useState("");
   const [manualPayerDocument, setManualPayerDocument] = useState("");
@@ -41,17 +45,17 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
     e.preventDefault();
 
     if (!selectedEmployeeId || !receiptValue || !receiptDescription || !payingCompany) {
-      alert("Preencha todos os campos do recibo.");
+      setErrorModal({ isOpen: true, title: "Campos obrigatórios", message: "Preencha todos os campos do recibo." });
       return;
     }
 
     if (isManual && !manualName.trim()) {
-      alert("Informe o nome do recebedor.");
+      setErrorModal({ isOpen: true, title: "Nome obrigatório", message: "Informe o nome do recebedor." });
       return;
     }
 
     if (isManualPayer && !manualPayerName.trim()) {
-      alert("Informe o nome do pagador (Sócio/Pessoa Física).");
+      setErrorModal({ isOpen: true, title: "Pagador obrigatório", message: "Informe o nome do pagador (Sócio/Pessoa Física)." });
       return;
     }
 
@@ -152,6 +156,13 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
 
   return (
     <div className="flex flex-col">
+      <AlertModal 
+        isOpen={errorModal.isOpen} 
+        onClose={() => setErrorModal(prev => ({ ...prev, isOpen: false }))}
+        title={errorModal.title}
+        message={errorModal.message}
+        type="error"
+      />
       <style dangerouslySetInnerHTML={{
         __html: `
         @media print {

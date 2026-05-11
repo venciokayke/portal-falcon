@@ -11,6 +11,8 @@ import {
   Calendar, Save, Loader2, Printer, Sparkles,
   CheckCircle2, Check, ShieldCheck, TrendingUp, TrendingDown,
 } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { AlertModal } from "@/components/ui/AlertModal";
 
 const MONTHS = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -62,6 +64,12 @@ export default function PayrollClient() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [pendingPaid, startPaidTransition] = useTransition();
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [errorModal, setErrorModal] = useState<{isOpen: boolean; title: string; message: string}>({
+    isOpen: false, title: "", message: ""
+  });
+
+  const { data: session } = useSession();
+  const isAdminOrManager = (session?.user as any)?.role === "ADMIN" || (session?.user as any)?.role === "MANAGER";
 
   useEffect(() => { loadData(); }, [month, year]);
 
@@ -98,7 +106,7 @@ export default function PayrollClient() {
       })));
       setSavedAt(new Date().toLocaleTimeString("pt-BR"));
     } catch {
-      alert("Erro ao salvar.");
+      setErrorModal({ isOpen: true, title: "Erro ao salvar", message: "Ocorreu um erro ao salvar o fechamento. Tente novamente." });
     } finally {
       setIsSaving(false);
     }
@@ -115,7 +123,7 @@ export default function PayrollClient() {
           approvedAt: !currentPaid ? new Date().toISOString() : null,
         }));
       } catch {
-        alert("Erro ao atualizar status.");
+        setErrorModal({ isOpen: true, title: "Erro ao atualizar", message: "Ocorreu um erro ao atualizar o status." });
       }
     });
   };
@@ -126,7 +134,7 @@ export default function PayrollClient() {
       await generateMonthPreview(month, year);
       await loadData();
     } catch {
-      alert("Erro ao gerar prévia.");
+      setErrorModal({ isOpen: true, title: "Erro ao gerar prévia", message: "Ocorreu um erro ao calcular os valores da folha." });
     } finally {
       setIsGenerating(false);
     }
@@ -326,20 +334,35 @@ export default function PayrollClient() {
 
                     {/* Status (toggle) */}
                     <td className="px-4 py-3 text-center print:hidden">
-                      <button
-                        onClick={() => handleTogglePaid(row.id, row.isPaid)}
-                        disabled={pendingPaid}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all duration-200 disabled:opacity-50 ${
-                          row.isPaid
-                            ? "bg-green-500 text-white border-transparent shadow-sm shadow-green-200 hover:bg-green-600"
-                            : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50 hover:border-gray-400"
-                        }`}
-                      >
-                        {row.isPaid
-                          ? <><Check className="h-4 w-4" /> Pago</>
-                          : <><span className="h-4 w-4 rounded-full border-2 border-gray-300 inline-block" /> Pagar</>
-                        }
-                      </button>
+                      {isAdminOrManager ? (
+                        <button
+                          onClick={() => handleTogglePaid(row.id, row.isPaid)}
+                          disabled={pendingPaid}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all duration-200 disabled:opacity-50 ${
+                            row.isPaid
+                              ? "bg-green-500 text-white border-transparent shadow-sm shadow-green-200 hover:bg-green-600"
+                              : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50 hover:border-gray-400"
+                          }`}
+                        >
+                          {row.isPaid
+                            ? <><Check className="h-4 w-4" /> Pago</>
+                            : <><span className="h-4 w-4 rounded-full border-2 border-gray-300 inline-block" /> Pagar</>
+                          }
+                        </button>
+                      ) : (
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all duration-200 ${
+                            row.isPaid
+                              ? "bg-green-100 text-green-700 border-green-200"
+                              : "bg-gray-100 text-gray-600 border-gray-200"
+                          }`}
+                        >
+                          {row.isPaid
+                            ? <><Check className="h-4 w-4" /> Pago</>
+                            : <>Pendente</>
+                          }
+                        </span>
+                      )}
                     </td>
 
                     {/* Aprovação */}
@@ -372,6 +395,13 @@ export default function PayrollClient() {
 
   return (
     <div className="flex flex-col bg-white min-h-full">
+      <AlertModal 
+        isOpen={errorModal.isOpen} 
+        onClose={() => setErrorModal(prev => ({ ...prev, isOpen: false }))}
+        title={errorModal.title}
+        message={errorModal.message}
+        type="error"
+      />
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           @page { size: A4 landscape; margin: 8mm; }

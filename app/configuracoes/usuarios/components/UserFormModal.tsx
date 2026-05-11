@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createSystemUser } from "@/actions/system-user";
-import { UserPlus, X, Loader2 } from "lucide-react";
+import { UserPlus, X, Loader2, AlertTriangle } from "lucide-react";
 
 export default function UserFormModal() {
   const [isOpen, setIsOpen] = useState(false);
@@ -63,7 +63,7 @@ export default function UserFormModal() {
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               {error && (
                 <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm font-medium border border-red-100 flex items-center gap-2">
-                  <span>⚠️</span> {error}
+                  <AlertTriangle className="h-5 w-5" /> {error}
                 </div>
               )}
 

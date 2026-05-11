@@ -10,7 +10,14 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 // Busca os registros do MonthlyPayroll para o mês/ano. Retorna [] se não gerados ainda.
 export async function getMonthlyPayrolls(month: number, year: number) {
   const records = await prisma.monthlyPayroll.findMany({
-    where: { month, year },
+    where: { 
+      month, 
+      year,
+      OR: [
+        { isPaid: true },
+        { employee: { isActive: true } }
+      ]
+    },
     include: {
       employee: {
         select: {

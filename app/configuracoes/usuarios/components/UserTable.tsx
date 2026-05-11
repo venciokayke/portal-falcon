@@ -4,6 +4,8 @@ import { useTransition } from "react";
 import { deleteSystemUser } from "@/actions/system-user";
 import { Trash2, ShieldCheck, Shield, User } from "lucide-react";
 import PasswordChangeModal from "./PasswordChangeModal";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { useState } from "react";
 
 const ROLE_CONFIG: Record<string, { label: string; class: string; icon: any }> = {
   ADMIN:   { label: "Admin",   class: "bg-purple-100 text-purple-700 border-purple-200", icon: ShieldCheck },
@@ -14,16 +16,27 @@ const ROLE_CONFIG: Record<string, { label: string; class: string; icon: any }> =
 export default function UserTable({ users }: { users: any[] }) {
   const [isPending, startTransition] = useTransition();
 
-  function handleDelete(id: string, name: string) {
-    if (confirm(`⚠️ Deseja realmente excluir o usuário "${name}"?\nEsta ação não pode ser desfeita.`)) {
-      startTransition(() => {
-        deleteSystemUser(id);
-      });
-    }
+  const [confirmModal, setConfirmModal] = useState<{isOpen: boolean; userId: string; userName: string}>({isOpen: false, userId: "", userName: ""});
+
+  function handleDeleteRequest(id: string, name: string) {
+    setConfirmModal({ isOpen: true, userId: id, userName: name });
+  }
+
+  function handleConfirmDelete() {
+    startTransition(() => {
+      deleteSystemUser(confirmModal.userId);
+    });
   }
 
   return (
     <div className="overflow-x-auto">
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={handleConfirmDelete}
+        title="Excluir Usuário"
+        message={`Deseja realmente excluir o usuário "${confirmModal.userName}"?\nEsta ação não pode ser desfeita.`}
+      />
       <table className="w-full text-sm text-left">
         <thead className="bg-gray-50 border-b border-gray-200 text-gray-700">
           <tr>
@@ -56,10 +69,10 @@ export default function UserTable({ users }: { users: any[] }) {
                 <div className="flex items-center justify-end gap-2">
                   <PasswordChangeModal userId={user.id} userName={user.name} />
                   <button
-                    onClick={() => handleDelete(user.id, user.name)}
+                    onClick={() => handleDeleteRequest(user.id, user.name)}
                     disabled={isPending}
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors disabled:opacity-50"
-                    title="Excluir Usuário"
+                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Excluir"
                   >
                     <Trash2 className="h-5 w-5" />
                   </button>

@@ -6,7 +6,7 @@ import GlobalRatesWidget from "./components/GlobalRatesWidget";
 import { getGlobalRates } from "@/actions/config";
 import {
   Users, DollarSign, UserMinus, Clock, AlertTriangle,
-  FileWarning, BarChart3, AlertCircle, CheckCircle2, Siren
+  FileWarning, BarChart3, AlertCircle, CheckCircle2, Siren, ClipboardList
 } from "lucide-react";
 
 export const dynamic = 'force-dynamic';
@@ -125,9 +125,11 @@ export default async function DashboardPage() {
       {/* ══════════════════ QUADRO DE AVISOS ══════════════════ */}
       {(showPaymentUrgency || openShiftEmployees.length > 0 || unpaidPayrolls.length > 0 || daysInMonth === 31) && (
         <div className="flex flex-col gap-3">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">📋 Quadro de Avisos</h2>
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+            <ClipboardList className="h-4 w-4" /> Quadro de Avisos
+          </h2>
 
-          {/* 🚨 Alerta crítico: 5º dia útil */}
+          {/* Alerta crítico: 5º dia útil */}
           {showPaymentUrgency && (
             <div className="relative overflow-hidden bg-red-600 text-white rounded-xl p-4 flex items-start gap-3 shadow-lg shadow-red-200">
               <div className="absolute inset-0 animate-pulse bg-red-700 opacity-20 rounded-xl pointer-events-none" />
@@ -143,14 +145,14 @@ export default async function DashboardPage() {
             </div>
           )}
 
-          {/* ⚠️ Plantões em aberto */}
+          {/* Plantões em aberto */}
           {openShiftEmployees.length > 0 && (
             <div className="bg-amber-50 border border-amber-200 border-l-4 border-l-amber-500 rounded-xl p-4 flex flex-col gap-3 shadow-sm">
               <div className="flex items-center gap-2">
                 <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />
                 <div>
                   <h3 className="font-bold text-amber-900 text-sm">
-                    ⚠️ {openShiftsRaw.length} plantão(ões) em aberto precisam de fechamento
+                    Plantões em aberto precisam de fechamento
                   </h3>
                   <p className="text-amber-700 text-xs mt-0.5">Turnos com entrada registrada mas sem horário de saída.</p>
                 </div>

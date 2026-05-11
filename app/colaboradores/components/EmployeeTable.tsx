@@ -4,11 +4,20 @@ import { archiveEmployee, updateEmployeeParity } from "@/actions/employee";
 import { Archive, Pencil } from "lucide-react";
 import { useTransition } from "react";
 import EmployeeFormModal from "./EmployeeFormModal";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { useState } from "react";
 
 const FORMAT_SCHEDULE: Record<string, string> = {
   SCALE_12X36: "Escala 12x36",
   FIXED_220: "Fixo (220h)",
   CUSTOM: "Personalizada"
+};
+
+const FORMAT_CONTRACT: Record<string, string> = {
+  CLT: "CLT",
+  HORISTA: "Horista",
+  PJ_FIXO: "PJ Fixo",
+  PJ_HORISTA: "PJ Horista",
 };
 
 const GROUPS = [
@@ -20,12 +29,16 @@ const GROUPS = [
 export default function EmployeeTable({ employees }: { employees: any[] }) {
   const [isPending, startTransition] = useTransition();
 
-  const handleArchive = (id: string, name: string) => {
-    if (confirm(`⚠️ Tem certeza que deseja arquivar "${name}"?\n\nEsta ação irá remover o colaborador de todas as listas ativas do sistema. Ele poderá ser reativado depois na lista de Funcionários Arquivados.`)) {
-      startTransition(() => {
-        archiveEmployee(id);
-      });
-    }
+  const [confirmModal, setConfirmModal] = useState<{isOpen: boolean; employeeId: string; employeeName: string}>({isOpen: false, employeeId: "", employeeName: ""});
+
+  const handleArchiveRequest = (id: string, name: string) => {
+    setConfirmModal({ isOpen: true, employeeId: id, employeeName: name });
+  };
+
+  const handleConfirmArchive = () => {
+    startTransition(() => {
+      archiveEmployee(confirmModal.employeeId);
+    });
   };
 
   const handleParityChange = (id: string, newParity: any) => {
@@ -36,6 +49,13 @@ export default function EmployeeTable({ employees }: { employees: any[] }) {
 
   return (
     <div className="flex flex-col gap-8">
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={handleConfirmArchive}
+        title="Arquivar Colaborador"
+        message={`Tem certeza que deseja arquivar "${confirmModal.employeeName}"?\n\nEsta ação irá remover o colaborador de todas as listas ativas do sistema. Ele poderá ser reativado depois na lista de Funcionários Arquivados.`}
+      />
       {GROUPS.map(group => {
         const groupEmployees = employees.filter(e => e.registrationCompany === group.id);
 
@@ -53,7 +73,7 @@ export default function EmployeeTable({ employees }: { employees: any[] }) {
                     <th className="px-6 py-4 font-semibold">Nome</th>
                     <th className="px-6 py-4 font-semibold">Contrato</th>
                     <th className="px-6 py-4 font-semibold">Escala</th>
-                    <th className="px-6 py-4 font-semibold">Valor/Hora</th>
+                    <th className="px-6 py-4 font-semibold">Remuneração</th>
                     <th className="px-6 py-4 font-semibold text-right">Ações</th>
                   </tr>
                 </thead>
@@ -61,7 +81,7 @@ export default function EmployeeTable({ employees }: { employees: any[] }) {
                   {groupEmployees.map((emp) => (
                     <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 font-medium text-gray-900">{emp.name}</td>
-                      <td className="px-6 py-4">{emp.contractType}</td>
+                      <td className="px-6 py-4">{FORMAT_CONTRACT[emp.contractType] || emp.contractType}</td>
                       <td className="px-6 py-4">
                         {emp.workSchedule === "SCALE_12X36" ? (
                           <div className="flex items-center gap-2">
@@ -85,7 +105,24 @@ export default function EmployeeTable({ employees }: { employees: any[] }) {
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(emp.hourlyRate))}
+                        {emp.contractType === "PJ_FIXO" || (emp.contractType === "CLT" && emp.baseSalary > 0) ? (
+                          <div className="flex flex-col">
+                            <span className="text-[10px] uppercase font-bold text-gray-500">Salário Base</span>
+                            <span className="font-medium text-gray-900">
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(emp.baseSalary))}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col">
+                            <span className="text-[10px] uppercase font-bold text-gray-500">Valor / Hora</span>
+                            <span className="font-medium text-gray-900">
+                              {emp.hourlyRate > 0 
+                                ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(emp.hourlyRate))
+                                : <span className="text-gray-400 text-xs italic">Global do Sistema</span>
+                              }
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
@@ -98,9 +135,9 @@ export default function EmployeeTable({ employees }: { employees: any[] }) {
                             }
                           />
                           <button
-                            onClick={() => handleArchive(emp.id, emp.name)}
+                            onClick={() => handleArchiveRequest(emp.id, emp.name)}
                             disabled={isPending}
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors disabled:opacity-50"
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                             title="Arquivar Colaborador"
                           >
                             <Archive className="h-5 w-5" />

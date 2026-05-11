@@ -17,6 +17,7 @@ export default function Sidebar() {
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/colaboradores", label: "Colaboradores", icon: Users },
     { href: "/ponto", label: "Lançamento de Ponto", icon: Clock },
+    { href: "/horas-extras", label: "Horas Extras", icon: Clock },
     { href: "/folha", label: "Fechamento de Folha", icon: Wallet },
   ];
 

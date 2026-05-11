@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { updateSystemUserPassword } from "@/actions/system-user";
-import { Key, X, Loader2 } from "lucide-react";
+import { Key, X, Loader2, AlertTriangle } from "lucide-react";
 
 export default function PasswordChangeModal({ userId, userName }: { userId: string, userName: string }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -66,8 +66,8 @@ export default function PasswordChangeModal({ userId, userName }: { userId: stri
               </div>
 
               {error && (
-                <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm font-medium border border-red-100 flex items-center gap-2">
-                  <span>⚠️</span> {error}
+                <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm border border-red-200 mb-4 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" /> {error}
                 </div>
               )}
 

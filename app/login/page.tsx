@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Shield, LogIn, Loader2, Eye, EyeOff } from "lucide-react";
+import { Shield, LogIn, Loader2, Eye, EyeOff, AlertTriangle } from "lucide-react";
 import { SESSION_KEY } from "@/components/SessionGuard";
 
 export default function LoginPage() {
@@ -55,7 +55,7 @@ export default function LoginPage() {
 
           {error && (
             <div className="bg-red-500/20 border border-red-500/50 text-red-200 rounded-lg px-4 py-3 mb-5 text-sm flex items-center gap-2">
-              <span>⚠️</span> {error}
+              <AlertTriangle className="w-4 h-4" /> {error}
             </div>
           )}
 

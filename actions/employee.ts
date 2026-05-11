@@ -53,11 +53,9 @@ function validateEmployeeData(data: ReturnType<typeof parseEmployeeForm>) {
   }
 
   // Validação financeira por tipo de contrato
-  if (data.contractType === "CLT" || data.contractType === "PJ_FIXO") {
+  if (data.contractType === "PJ_FIXO") {
     if (!data.baseSalary || data.baseSalary <= 0) {
-      errors.push(
-        `Contrato ${data.contractType === "CLT" ? "CLT" : "PJ Fixo"} exige um Salário Base maior que zero.`
-      );
+      errors.push("Contrato PJ Fixo exige um Salário Base maior que zero.");
     }
   }
 
