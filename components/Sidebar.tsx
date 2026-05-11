@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
-  LayoutDashboard, Users, Clock, Wallet, Printer, 
-  FileSpreadsheet, Ticket, Receipt, LogOut, Settings, Shield 
+import {
+  LayoutDashboard, Users, Clock, Wallet, Printer,
+  FileSpreadsheet, Ticket, Receipt, LogOut, Settings, Shield
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 
@@ -22,7 +22,7 @@ export default function Sidebar() {
 
   const reportLinks = [
     { href: "/imprimir", label: "Folhas de Ponto", icon: Printer },
-    { href: "/relatorio-contabilidade", label: "Horas Intervalares", icon: FileSpreadsheet },
+    { href: "/relatorio-contabilidade", label: "Relatório Contabilidade", icon: FileSpreadsheet },
     { href: "/relatorio-beneficios", label: "Relatório de Benefícios", icon: Ticket },
     { href: "/gerador-recibos", label: "Gerador de Recibos", icon: Receipt },
   ];
