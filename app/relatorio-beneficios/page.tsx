@@ -17,7 +17,7 @@ export default async function RelatorioBeneficiosPage() {
   const exceptionEmployees = [];
 
   for (const emp of allEmployees) {
-    if (emp.contractType === "CLT" || emp.receivesVA || emp.receivesVT) {
+    if (emp.receivesVA || emp.receivesVT) {
       autoLoadEmployees.push(emp);
     } else {
       exceptionEmployees.push(emp);
@@ -25,7 +25,7 @@ export default async function RelatorioBeneficiosPage() {
   }
 
   const initialData = autoLoadEmployees.map((emp) => {
-    const vaUnid = (emp.contractType === "CLT" || emp.receivesVA) ? 15 : 0;
+    const vaUnid = emp.receivesVA ? 15 : 0;
     const vtUnid = emp.receivesVT ? 15 : 0;
 
     return {
