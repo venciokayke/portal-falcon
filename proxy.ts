@@ -1,6 +1,26 @@
 import { withAuth } from "next-auth/middleware";
+import { NextResponse } from "next/server";
 
-export default withAuth;
+export default withAuth(
+  function middleware(req) {
+    const token = req.nextauth.token;
+    const isMustChange = token?.mustChangePassword === true;
+    const { pathname } = req.nextUrl;
+
+    if (isMustChange && pathname !== "/mudar-senha") {
+      return NextResponse.redirect(new URL("/mudar-senha", req.url));
+    }
+
+    if (!isMustChange && pathname === "/mudar-senha") {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+  },
+  {
+    callbacks: {
+      authorized: ({ token }) => !!token,
+    },
+  }
+);
 
 export const config = {
   matcher: [

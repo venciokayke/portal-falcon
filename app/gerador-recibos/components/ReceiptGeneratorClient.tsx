@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Printer, Plus, Trash2, ReceiptText, CheckSquare, XSquare } from "lucide-react";
+import { Printer, Plus, Trash2, ReceiptText, CheckSquare, XSquare, Pencil } from "lucide-react";
 import { AlertModal } from "@/components/ui/AlertModal";
 
 type EmployeeMin = {
@@ -34,6 +34,15 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
   const [errorModal, setErrorModal] = useState<{isOpen: boolean; title: string; message: string}>({
     isOpen: false, title: "", message: ""
   });
+
+  const [editingReceipt, setEditingReceipt] = useState<ReceiptItem | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editEmployeeName, setEditEmployeeName] = useState("");
+  const [editDocument, setEditDocument] = useState("");
+  const [editValue, setEditValue] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editPayingCompany, setEditPayingCompany] = useState("");
+  const [editDate, setEditDate] = useState("");
 
   const [manualPayerName, setManualPayerName] = useState("");
   const [manualPayerDocument, setManualPayerDocument] = useState("");
@@ -95,6 +104,43 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
     setReceiptValue("");
   };
 
+  const handleOpenEditModal = (item: ReceiptItem) => {
+    setEditingReceipt(item);
+    setEditEmployeeName(item.employeeName);
+    setEditDocument(item.document);
+    setEditValue(String(item.value));
+    setEditDescription(item.description);
+    setEditPayingCompany(item.payingCompany);
+    setEditDate(item.date);
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingReceipt) return;
+
+    if (!editEmployeeName.trim() || !editValue || !editDescription.trim() || !editPayingCompany.trim() || !editDate) {
+      setErrorModal({ isOpen: true, title: "Campos obrigatórios", message: "Preencha todos os campos do recibo." });
+      return;
+    }
+
+    setReceiptQueue(prev => prev.map(item => {
+      if (item.id !== editingReceipt.id) return item;
+      return {
+        ...item,
+        employeeName: editEmployeeName.trim(),
+        document: editDocument.trim(),
+        value: Number(editValue),
+        description: editDescription.trim(),
+        payingCompany: editPayingCompany.trim(),
+        date: editDate,
+      };
+    }));
+
+    setIsEditModalOpen(false);
+    setEditingReceipt(null);
+  };
+
   const handleRemoveReceipt = (id: string) => {
     setReceiptQueue(receiptQueue.filter(item => item.id !== id));
 
@@ -148,10 +194,10 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
     return date.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
   };
 
-  // Divide a fila em chunks (páginas) de 2 recibos
+  // Divide a fila em chunks (páginas) de 3 recibos
   const chunks: ReceiptItem[][] = [];
-  for (let i = 0; i < receiptQueue.length; i += 2) {
-    chunks.push(receiptQueue.slice(i, i + 2));
+  for (let i = 0; i < receiptQueue.length; i += 3) {
+    chunks.push(receiptQueue.slice(i, i + 3));
   }
 
   return (
@@ -163,12 +209,122 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
         message={errorModal.message}
         type="error"
       />
+
+      {/* Modal de Edição (Sprint 2) */}
+      {isEditModalOpen && editingReceipt && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 print:hidden animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={() => setIsEditModalOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 transform transition-all animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center border-b border-gray-100 pb-3 mb-4">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <ReceiptText className="h-5 w-5 text-blue-600" />
+                Editar Recibo
+              </h3>
+              <button 
+                type="button" 
+                onClick={() => setIsEditModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 font-bold text-2xl"
+              >
+                &times;
+              </button>
+            </div>
+            <form onSubmit={handleSaveEdit} className="space-y-4 overflow-y-auto pr-1 flex-1">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Recebedor</label>
+                <input
+                  type="text"
+                  value={editEmployeeName}
+                  onChange={e => setEditEmployeeName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">CPF / CNPJ</label>
+                <input
+                  type="text"
+                  value={editDocument}
+                  onChange={e => setEditDocument(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Valor (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={editValue}
+                    onChange={e => setEditValue(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Data do Recibo</label>
+                  <input
+                    type="date"
+                    value={editDate}
+                    onChange={e => setEditDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Empresa Pagadora</label>
+                <input
+                  type="text"
+                  value={editPayingCompany}
+                  onChange={e => setEditPayingCompany(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Referente a (Motivo)</label>
+                <input
+                  type="text"
+                  value={editDescription}
+                  onChange={e => setEditDescription(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  required
+                />
+              </div>
+              <div className="flex gap-3 pt-3 border-t border-gray-100 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="flex-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2.5 rounded-xl transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-xl transition-colors"
+                >
+                  Salvar Alterações
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       <style dangerouslySetInnerHTML={{
         __html: `
         @media print {
           @page { size: A4 portrait; margin: 0; }
           body { background: white !important; }
           .no-print { display: none !important; }
+          /* Remove margens e paddings dos containers superiores durante a impressao para evitar pagina extra */
+          html, body, main, div.space-y-6, div.px-6, div.pb-10, div.min-h-screen {
+            margin: 0 !important;
+            padding: 0 !important;
+            min-height: 0 !important;
+            height: auto !important;
+            box-shadow: none !important;
+          }
         }
       `}} />
 
@@ -387,6 +543,13 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
                       {formatCurrency(item.value)}
                     </span>
                     <button
+                      onClick={() => handleOpenEditModal(item)}
+                      className="text-blue-500 hover:text-blue-700 p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Editar este recibo"
+                    >
+                      <Pencil className="h-5 w-5" />
+                    </button>
+                    <button
                       onClick={() => handleRemoveReceipt(item.id)}
                       className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded-lg transition-colors"
                       title="Excluir este recibo"
@@ -401,50 +564,56 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
         </div>
       )}
 
-      {/* Renderização para Impressão (Agrupando de 2 em 2) */}
+      {/* Renderização para Impressão (Agrupando de 3 em 3) */}
       <div className="hidden print:block bg-white text-black w-full">
         {chunks.map((chunk, pageIndex) => (
-          <div key={pageIndex} className={`print:h-[297mm] print:w-[210mm] flex flex-col box-border ${pageIndex < chunks.length - 1 ? 'print:break-after-page' : ''}`}>
+          <div key={pageIndex} className={`print:h-[296mm] print:w-[210mm] flex flex-col box-border p-2 ${pageIndex < chunks.length - 1 ? 'print:break-after-page' : ''}`}>
             {chunk.map((item, index) => (
-              <div key={item.id} className="flex-1 border-2 border-slate-800 rounded-xl m-4 p-8 flex flex-col justify-between relative">
+              <div key={item.id} className="flex-1 border border-slate-800 rounded-lg m-2 p-5 flex flex-col justify-between relative">
 
-                {/* Linha de Corte no topo do segundo recibo, ou base do primeiro */}
-                {index === 0 && chunk.length > 1 && (
-                  <div className="absolute -bottom-4 left-0 w-full border-b-2 border-dashed border-slate-400">
-                    <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] text-gray-500 bg-white px-2">
+                {/* Linha de Corte entre os recibos */}
+                {index < chunk.length - 1 && (
+                  <div className="absolute -bottom-3 left-0 w-full border-b border-dashed border-slate-400">
+                    <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[9px] text-gray-500 bg-white px-2">
                       ✂️ Cortar aqui
                     </span>
                   </div>
                 )}
 
                 <div>
-                  <div className="flex justify-between items-center border-b border-slate-300 pb-4 mb-4">
-                    <h2 className="text-2xl font-bold uppercase tracking-widest text-slate-800">Recibo</h2>
-                    <div className="border-2 border-slate-800 bg-slate-100 px-4 py-2 text-xl font-bold rounded-lg shadow-sm">
+                  <div className="flex justify-between items-center border-b border-slate-300 pb-2 mb-2">
+                    <h2 className="text-lg font-bold uppercase tracking-widest text-slate-800">Recibo</h2>
+                    <div className="border border-slate-800 bg-slate-100 px-3 py-1 text-base font-bold rounded-md shadow-sm">
                       {formatCurrency(item.value)}
                     </div>
                   </div>
 
-                  <p className="text-lg leading-loose text-justify text-slate-800 mt-6">
+                  <p className="text-sm leading-relaxed text-justify text-slate-800 mt-3">
                     Recebi(emos) de <span className="font-bold">{item.payingCompany}</span>, a importância supra de <span className="font-bold px-1 bg-yellow-200">{formatCurrency(item.value)}</span> referente a <span className="font-bold">{item.description}</span>.
                   </p>
                 </div>
 
-                <div className="flex flex-col gap-12 mt-8">
-                  <p className="text-lg w-full text-right text-slate-800 font-medium">
+                <div className="flex flex-col gap-6 mt-4">
+                  <p className="text-sm w-full text-right text-slate-800 font-medium">
                     Goiânia - GO, {formatDateFull(item.date)}.
                   </p>
 
-                  <div className="w-3/4 mx-auto mt-12 flex flex-col items-center">
+                  <div className="w-2/3 mx-auto mt-2 flex flex-col items-center">
                     <div className="w-full border-t border-slate-800"></div>
-                    <span className="font-bold text-lg uppercase mt-2 text-slate-900">{item.employeeName}</span>
+                    <span className="font-bold text-sm uppercase mt-1 text-slate-900">{item.employeeName}</span>
                   </div>
                 </div>
               </div>
             ))}
-            {/* Se houver apenas 1 recibo nesta página, renderizamos um espaço vazio na metade inferior para não esticar o primeiro */}
+            {/* Espaçadores flexíveis para manter proporção caso a página não esteja cheia */}
             {chunk.length === 1 && (
-              <div className="flex-1 m-4 border-2 border-transparent"></div>
+              <>
+                <div className="flex-1 m-2 border border-transparent"></div>
+                <div className="flex-1 m-2 border border-transparent"></div>
+              </>
+            )}
+            {chunk.length === 2 && (
+              <div className="flex-1 m-2 border border-transparent"></div>
             )}
           </div>
         ))}

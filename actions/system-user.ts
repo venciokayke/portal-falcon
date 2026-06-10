@@ -68,9 +68,14 @@ export async function updateSystemUserPassword(id: string, password: string) {
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
+  const isSelf = currentUser.id === id;
+
   await prisma.systemUser.update({
     where: { id },
-    data: { password: hashedPassword },
+    data: { 
+      password: hashedPassword,
+      mustChangePassword: !isSelf,
+    },
   });
 
   revalidatePath("/configuracoes/usuarios");
@@ -132,3 +137,71 @@ export async function deleteSystemUser(id: string) {
 
   revalidatePath("/configuracoes/usuarios");
 }
+
+export async function resetUserPassword(id: string) {
+  const currentUser = await requireSession();
+
+  // Apenas ADMIN ou MANAGER podem acionar
+  if (currentUser.role !== "ADMIN" && currentUser.role !== "MANAGER") {
+    throw new Error("Acesso negado. Apenas administradores ou gerentes podem resetar senhas.");
+  }
+
+  const targetUser = await prisma.systemUser.findUnique({ where: { id } });
+  if (!targetUser) throw new Error("Usuário não encontrado.");
+
+  // RBAC: MANAGER não pode alterar senha de ADMIN
+  if (targetUser.role === "ADMIN" && currentUser.role !== "ADMIN") {
+    throw new Error("Acesso negado. Apenas administradores podem alterar a senha de outros administradores.");
+  }
+
+  const hashedPassword = await bcrypt.hash("Mudar@123", 10);
+
+  await prisma.systemUser.update({
+    where: { id },
+    data: {
+      password: hashedPassword,
+      mustChangePassword: true,
+    },
+  });
+
+  revalidatePath("/configuracoes/usuarios");
+
+  return { message: "Senha redefinida para Mudar@123" };
+}
+
+export async function forceChangeUserPassword(password: string, confirmPassword: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    throw new Error("Não autenticado.");
+  }
+
+  const userId = (session.user as any).id;
+  if (!userId) {
+    throw new Error("Usuário não identificado.");
+  }
+
+  if (password !== confirmPassword) {
+    throw new Error("As senhas não coincidem.");
+  }
+
+  if (!password || password.length < 6) {
+    throw new Error("A senha deve ter pelo menos 6 caracteres.");
+  }
+
+  if (password === "Mudar@123") {
+    throw new Error("Você não pode usar a senha padrão provisória.");
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  await prisma.systemUser.update({
+    where: { id: userId },
+    data: {
+      password: hashedPassword,
+      mustChangePassword: false,
+    },
+  });
+
+  return { success: true, message: "Senha alterada com sucesso." };
+}
+

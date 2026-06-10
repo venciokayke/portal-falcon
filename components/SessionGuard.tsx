@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
+import { useRouter, usePathname } from "next/navigation";
 
 export const SESSION_KEY = "falcon_tab_active";
 
@@ -11,7 +12,9 @@ export const SESSION_KEY = "falcon_tab_active";
  * O sessionStorage é destruído automaticamente ao fechar a aba.
  */
 export default function SessionGuard() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (status === "loading") return;
@@ -21,13 +24,19 @@ export default function SessionGuard() {
       if (!tabToken) {
         // JWT válido mas aba foi fechada/reaberta sem login — encerra
         signOut({ callbackUrl: "/login" });
+        return;
+      }
+
+      // Redirecionamento cliente do mustChangePassword
+      if ((session?.user as any)?.mustChangePassword && pathname !== "/mudar-senha") {
+        router.push("/mudar-senha");
       }
     }
 
     if (status === "unauthenticated") {
       sessionStorage.removeItem(SESSION_KEY);
     }
-  }, [status]);
+  }, [status, session, pathname, router]);
 
   return null;
 }

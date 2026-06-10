@@ -44,7 +44,8 @@ export default async function DashboardPage() {
       include: {
         shifts: {
           where: { referenceDate: { gte: startOfMonth, lte: endOfMonth } }
-        }
+        },
+        absenceExemptions: true,
       }
     }),
     // Turnos com entrada preenchida e saída nula no mês atual

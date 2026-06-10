@@ -1,11 +1,13 @@
 "use client";
 
 import { useTransition } from "react";
-import { deleteSystemUser } from "@/actions/system-user";
-import { Trash2, ShieldCheck, Shield, User } from "lucide-react";
+import { deleteSystemUser, resetUserPassword } from "@/actions/system-user";
+import { Trash2, ShieldCheck, Shield, User, RefreshCw } from "lucide-react";
 import PasswordChangeModal from "./PasswordChangeModal";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { AlertModal } from "@/components/ui/AlertModal";
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 
 const ROLE_CONFIG: Record<string, { label: string; class: string; icon: any }> = {
   ADMIN:   { label: "Admin",   class: "bg-purple-100 text-purple-700 border-purple-200", icon: ShieldCheck },
@@ -14,9 +16,13 @@ const ROLE_CONFIG: Record<string, { label: string; class: string; icon: any }> =
 };
 
 export default function UserTable({ users }: { users: any[] }) {
+  const { data: session } = useSession();
+  const isAdmin = (session?.user as any)?.role === "ADMIN";
   const [isPending, startTransition] = useTransition();
 
   const [confirmModal, setConfirmModal] = useState<{isOpen: boolean; userId: string; userName: string}>({isOpen: false, userId: "", userName: ""});
+  const [resetConfirmModal, setResetConfirmModal] = useState<{isOpen: boolean; userId: string; userName: string}>({isOpen: false, userId: "", userName: ""});
+  const [alertModal, setAlertModal] = useState<{isOpen: boolean; title: string; message: string; type: "success" | "error"}>({isOpen: false, title: "", message: "", type: "success"});
 
   function handleDeleteRequest(id: string, name: string) {
     setConfirmModal({ isOpen: true, userId: id, userName: name });
@@ -28,6 +34,31 @@ export default function UserTable({ users }: { users: any[] }) {
     });
   }
 
+  function handleResetRequest(id: string, name: string) {
+    setResetConfirmModal({ isOpen: true, userId: id, userName: name });
+  }
+
+  function handleConfirmReset() {
+    startTransition(async () => {
+      try {
+        const res = await resetUserPassword(resetConfirmModal.userId);
+        setAlertModal({
+          isOpen: true,
+          title: "Senha Redefinida",
+          message: res.message || "Senha redefinida para Mudar@123",
+          type: "success",
+        });
+      } catch (err: any) {
+        setAlertModal({
+          isOpen: true,
+          title: "Erro ao Resetar",
+          message: err.message || "Ocorreu um erro ao redefinir a senha.",
+          type: "error",
+        });
+      }
+    });
+  }
+
   return (
     <div className="overflow-x-auto">
       <ConfirmModal
@@ -36,6 +67,21 @@ export default function UserTable({ users }: { users: any[] }) {
         onConfirm={handleConfirmDelete}
         title="Excluir Usuário"
         message={`Deseja realmente excluir o usuário "${confirmModal.userName}"?\nEsta ação não pode ser desfeita.`}
+      />
+      <ConfirmModal
+        isOpen={resetConfirmModal.isOpen}
+        onClose={() => setResetConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={handleConfirmReset}
+        title="Resetar Senha do Usuário"
+        message={`Deseja realmente redefinir a senha do usuário "${resetConfirmModal.userName}" para a senha padrão "Mudar@123"?\nO usuário precisará alterar a senha no próximo acesso.`}
+        confirmText="Resetar"
+      />
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={() => setAlertModal(prev => ({ ...prev, isOpen: false }))}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
       />
       <table className="w-full text-sm text-left">
         <thead className="bg-gray-50 border-b border-gray-200 text-gray-700">
@@ -67,6 +113,16 @@ export default function UserTable({ users }: { users: any[] }) {
               </td>
               <td className="px-6 py-4 text-right">
                 <div className="flex items-center justify-end gap-2">
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleResetRequest(user.id, user.name)}
+                      disabled={isPending}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Resetar Senha"
+                    >
+                      <RefreshCw className="h-5 w-5" />
+                    </button>
+                  )}
                   <PasswordChangeModal userId={user.id} userName={user.name} />
                   <button
                     onClick={() => handleDeleteRequest(user.id, user.name)}

@@ -14,6 +14,8 @@ export type PayrollResult = {
   suggestedVT: number;
 };
 
+type ExemptionRange = { startDate: Date; endDate: Date };
+
 /**
  * Retorna os dias esperados de trabalho no mês baseado na escala.
  * Para SCALE_12X36, avalia os dias pares/ímpares do mês.
@@ -23,19 +25,34 @@ function getExpectedWorkDays(
   year: number,
   month: number, // 0-indexed
   workSchedule: WorkSchedule,
-  startParity: StartParity
+  startParity: StartParity,
+  exemptions: ExemptionRange[] = []
 ): number {
-  const daysInMonth = getDaysInMonth(new Date(year, month));
-  const today = new Date();
-  const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
   if (workSchedule === "CUSTOM") {
     return 0; // Horistas e PJ não têm dias úteis fixos predefinidos, então não geram faltas
   }
+
+  const isDayExempt = (dayNum: number) => {
+    const targetDate = new Date(year, month, dayNum);
+    const targetTime = targetDate.setHours(0,0,0,0);
+    return exemptions.some(ex => {
+      const start = new Date(ex.startDate);
+      const end = new Date(ex.endDate);
+      const startTime = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+      const endTime = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
+      return targetTime >= startTime && targetTime <= endTime;
+    });
+  };
+
+  const daysInMonth = getDaysInMonth(new Date(year, month));
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
 
   if (workSchedule === "SCALE_12X36") {
     let expectedDays = 0;
     for (let day = 1; day <= daysInMonth; day++) {
       if (isCurrentMonth && day > today.getDate()) break;
+      if (isDayExempt(day)) continue; // Abona o dia / Período afastado
       const isEven = day % 2 === 0;
       if (startParity === "PAR" && isEven) expectedDays++;
       if (startParity === "IMPAR" && !isEven) expectedDays++;
@@ -47,6 +64,7 @@ function getExpectedWorkDays(
   let expectedDays = 0;
   for (let day = 1; day <= daysInMonth; day++) {
     if (isCurrentMonth && day > today.getDate()) break;
+    if (isDayExempt(day)) continue; // Abona o dia / Período afastado
     const date = new Date(year, month, day);
     if (!isWeekend(date)) expectedDays++;
   }
@@ -54,16 +72,17 @@ function getExpectedWorkDays(
 }
 
 export function calculatePayroll(
-  employee: Employee,
+  employee: Employee & { absenceExemptions?: ExemptionRange[] },
   shifts: Shift[],
   month: number, // 0-indexed (0 = Jan, 11 = Dez)
   year: number,
   globalExtraHourRate: number = 13.00 // Taxa global; employee.hourlyRate sobrescreve se definida
 ): PayrollResult {
-  // Taxa efetiva: usa a exceção individual se existir, caso contrário usa a global
+  const exemptions = employee.absenceExemptions || [];
   const effectiveExtraRate = employee.hourlyRate ? Number(employee.hourlyRate) : globalExtraHourRate;
   // 1. Horas Base Dinâmicas
-  const expectedDaysCurrentMonth = getExpectedWorkDays(year, month, employee.workSchedule, employee.startParity);
+  const expectedDaysCurrentMonth = getExpectedWorkDays(year, month, employee.workSchedule, employee.startParity, exemptions);
+
   
   let baseHours = 220; // Padrão
   if (employee.workSchedule === "SCALE_12X36") {

@@ -85,6 +85,7 @@ export async function generateMonthPreview(month: number, year: number) {
             referenceDate: { gte: startDate, lt: endDate },
           },
         },
+        absenceExemptions: true,
       },
       orderBy: { name: "asc" },
     }),

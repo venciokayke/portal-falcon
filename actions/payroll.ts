@@ -17,7 +17,8 @@ export async function getPayrollData(month: number, year: number) {
       include: {
         shifts: {
           where: { referenceDate: { gte: startDate, lt: endDate } }
-        }
+        },
+        absenceExemptions: true,
       },
       orderBy: { name: "asc" }
     }),

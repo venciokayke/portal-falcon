@@ -10,9 +10,16 @@ import {
 import {
   Calendar, Save, Loader2, Printer, Sparkles,
   CheckCircle2, Check, ShieldCheck, TrendingUp, TrendingDown,
+  RefreshCw, Send, ClipboardCheck, Ban,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { AlertModal } from "@/components/ui/AlertModal";
+import {
+  getPayrollStatus,
+  submitPayroll,
+  approvePayroll,
+  rejectPayroll,
+} from "@/actions/payroll-status";
 
 const MONTHS = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -64,12 +71,29 @@ export default function PayrollClient() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [pendingPaid, startPaidTransition] = useTransition();
   const [savedAt, setSavedAt] = useState<string | null>(null);
-  const [errorModal, setErrorModal] = useState<{isOpen: boolean; title: string; message: string}>({
+  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false, title: "", message: ""
   });
 
+  const [sheetStatus, setSheetStatus] = useState<{
+    status: string;
+    sentAt: string | null;
+    sentBy: string | null;
+    approvedAt: string | null;
+    approvedBy: string | null;
+  }>({
+    status: "EM_DIGITACAO",
+    sentAt: null,
+    sentBy: null,
+    approvedAt: null,
+    approvedBy: null,
+  });
+  const [isStatusChanging, setIsStatusChanging] = useState(false);
+
   const { data: session } = useSession();
   const isAdminOrManager = (session?.user as any)?.role === "ADMIN" || (session?.user as any)?.role === "MANAGER";
+
+  const canEdit = isAdminOrManager || (sheetStatus.status === "EM_DIGITACAO");
 
   useEffect(() => { loadData(); }, [month, year]);
 
@@ -77,10 +101,50 @@ export default function PayrollClient() {
     setIsLoading(true);
     setSavedAt(null);
     try {
-      const data = await getMonthlyPayrolls(month, year);
+      const [data, statusData] = await Promise.all([
+        getMonthlyPayrolls(month, year),
+        getPayrollStatus(month, year),
+      ]);
       setRows(data as PayrollRow[]);
+      setSheetStatus(statusData);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    setIsStatusChanging(true);
+    try {
+      await submitPayroll(month, year);
+      await loadData();
+    } catch {
+      setErrorModal({ isOpen: true, title: "Erro ao enviar", message: "Não foi possível enviar a folha para análise." });
+    } finally {
+      setIsStatusChanging(false);
+    }
+  };
+
+  const handleApprove = async () => {
+    setIsStatusChanging(true);
+    try {
+      await approvePayroll(month, year);
+      await loadData();
+    } catch {
+      setErrorModal({ isOpen: true, title: "Erro ao aprovar", message: "Não foi possível aprovar a folha." });
+    } finally {
+      setIsStatusChanging(false);
+    }
+  };
+
+  const handleReject = async () => {
+    setIsStatusChanging(true);
+    try {
+      await rejectPayroll(month, year);
+      await loadData();
+    } catch {
+      setErrorModal({ isOpen: true, title: "Erro ao recusar", message: "Não foi possível devolver a folha para correção." });
+    } finally {
+      setIsStatusChanging(false);
     }
   };
 
@@ -119,7 +183,7 @@ export default function PayrollClient() {
         setRows(prev => prev.map(r => r.id !== id ? r : {
           ...r,
           isPaid: !currentPaid,
-          approvedBy: !currentPaid ? "você" : null,
+          approvedBy: !currentPaid ? (session?.user?.name ?? "você") : null,
           approvedAt: !currentPaid ? new Date().toISOString() : null,
         }));
       } catch {
@@ -146,17 +210,17 @@ export default function PayrollClient() {
     { key: "NAO_REGISTRADO", rows: rows.filter(r => r.registrationCompany === "NAO_REGISTRADO") },
   ].filter(g => g.rows.length > 0);
 
-    const totalAPagar = rows.reduce((a, r) => a + (Number(r.baseValue) + Number(r.extras) + Number(r.vtValue) - Number(r.discounts)), 0);
-    const totalPago = rows.filter(r => r.isPaid).reduce((a, r) => a + (Number(r.baseValue) + Number(r.extras) + Number(r.vtValue) - Number(r.discounts)), 0);
-    const paidCount = rows.filter(r => r.isPaid).length;
-  
-    const renderGroup = (groupKey: string, groupRows: PayrollRow[]) => {
-      const totalGroup   = groupRows.reduce((a, r) => a + (Number(r.baseValue) + Number(r.extras) + Number(r.vtValue) - Number(r.discounts)), 0);
-      const totalBase    = groupRows.reduce((a, r) => a + (Number(r.baseValue) || 0), 0);
-      const totalExtras  = groupRows.reduce((a, r) => a + (Number(r.extras) || 0), 0);
-      const totalVT      = groupRows.reduce((a, r) => a + (Number(r.vtValue) || 0), 0);
-      const totalDesc    = groupRows.reduce((a, r) => a + (Number(r.discounts) || 0), 0);
-      const paidInGroup  = groupRows.filter(r => r.isPaid).length;
+  const totalAPagar = rows.reduce((a, r) => a + (Number(r.baseValue) + Number(r.extras) + Number(r.vtValue) - Number(r.discounts)), 0);
+  const totalPago = rows.filter(r => r.isPaid).reduce((a, r) => a + (Number(r.baseValue) + Number(r.extras) + Number(r.vtValue) - Number(r.discounts)), 0);
+  const paidCount = rows.filter(r => r.isPaid).length;
+
+  const renderGroup = (groupKey: string, groupRows: PayrollRow[]) => {
+    const totalGroup = groupRows.reduce((a, r) => a + (Number(r.baseValue) + Number(r.extras) + Number(r.vtValue) - Number(r.discounts)), 0);
+    const totalBase = groupRows.reduce((a, r) => a + (Number(r.baseValue) || 0), 0);
+    const totalExtras = groupRows.reduce((a, r) => a + (Number(r.extras) || 0), 0);
+    const totalVT = groupRows.reduce((a, r) => a + (Number(r.vtValue) || 0), 0);
+    const totalDesc = groupRows.reduce((a, r) => a + (Number(r.discounts) || 0), 0);
+    const paidInGroup = groupRows.filter(r => r.isPaid).length;
 
     return (
       <div key={groupKey} className="print:break-inside-avoid">
@@ -209,7 +273,7 @@ export default function PayrollClient() {
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-40">Dados de Pagamento</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Valor a Pagar</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28 text-right">Base / Salário</th>
-                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28 text-right">Horas Extras</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28 text-right">Valores Extras</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28 text-right">Vale Transp.</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28 text-right">Descontos</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Observações</th>
@@ -223,11 +287,10 @@ export default function PayrollClient() {
                 return (
                   <tr
                     key={row.id}
-                    className={`border-b border-gray-100 transition-colors print:border-black ${
-                      row.isPaid
-                        ? "bg-green-50/60 print:bg-transparent"
-                        : "bg-white hover:bg-gray-50/70"
-                    }`}
+                    className={`border-b border-gray-100 transition-colors print:border-black ${row.isPaid
+                      ? "bg-green-50/60 print:bg-transparent"
+                      : "bg-white hover:bg-gray-50/70"
+                      }`}
                   >
                     {/* Nome */}
                     <td className="px-4 py-3">
@@ -267,7 +330,7 @@ export default function PayrollClient() {
 
                     {/* Valor a Pagar */}
                     <td className="px-4 py-3 text-right">
-                      <span className="font-bold text-lg text-gray-900">
+                      <span className="font-bold text-md text-gray-900">
                         R$ {rowTotal.toFixed(2)}
                       </span>
                     </td>
@@ -278,7 +341,7 @@ export default function PayrollClient() {
                         type="number" step="0.01"
                         value={row.baseValue}
                         onChange={e => handleChange(row.id, "baseValue", e.target.value)}
-                        disabled={row.isPaid}
+                        disabled={row.isPaid || !canEdit}
                         className={`${inputBase} disabled:text-gray-400 disabled:cursor-not-allowed`}
                       />
                     </td>
@@ -289,7 +352,7 @@ export default function PayrollClient() {
                         type="number" step="0.01"
                         value={row.extras}
                         onChange={e => handleChange(row.id, "extras", e.target.value)}
-                        disabled={row.isPaid}
+                        disabled={row.isPaid || !canEdit}
                         className={`${inputBase} text-blue-700 focus:text-blue-800 disabled:text-gray-400 disabled:cursor-not-allowed`}
                       />
                     </td>
@@ -300,12 +363,11 @@ export default function PayrollClient() {
                         type="number" step="0.01"
                         value={!row.receivesVT ? 0 : row.vtValue}
                         onChange={e => handleChange(row.id, "vtValue", e.target.value)}
-                        disabled={row.isPaid || !row.receivesVT}
-                        className={`${inputBase} ${
-                          !row.receivesVT 
-                            ? 'bg-gray-200 cursor-not-allowed text-transparent border-transparent print:hidden' 
-                            : 'text-amber-700 focus:text-amber-800'
-                        } disabled:text-gray-400`}
+                        disabled={row.isPaid || !row.receivesVT || !canEdit}
+                        className={`${inputBase} ${!row.receivesVT
+                          ? 'bg-gray-200 cursor-not-allowed text-transparent border-transparent print:hidden'
+                          : 'text-blue-700 focus:text-blue-800'
+                          } disabled:text-gray-400`}
                       />
                     </td>
 
@@ -315,21 +377,31 @@ export default function PayrollClient() {
                         type="number" step="0.01"
                         value={row.discounts}
                         onChange={e => handleChange(row.id, "discounts", e.target.value)}
-                        disabled={row.isPaid}
+                        disabled={row.isPaid || !canEdit}
                         className={`${inputBase} text-red-600 focus:text-red-700 disabled:text-gray-400 disabled:cursor-not-allowed`}
                       />
                     </td>
 
                     {/* Observações */}
                     <td className="px-2 py-2">
-                      <input
-                        type="text"
-                        value={row.observations}
-                        onChange={e => handleChange(row.id, "observations", e.target.value)}
-                        disabled={row.isPaid}
-                        placeholder="Adicionar nota..."
-                        className="w-full bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-200 rounded px-2 py-1 transition-all outline-none text-left text-sm text-gray-600 placeholder-gray-300 disabled:cursor-not-allowed print:border-none print:bg-transparent print:p-0 print:ring-0 print:placeholder-transparent"
-                      />
+                      <div className="relative group/obs w-full">
+                        <input
+                          type="text"
+                          value={row.observations}
+                          onChange={e => handleChange(row.id, "observations", e.target.value)}
+                          disabled={row.isPaid || !canEdit}
+                          placeholder="Adicionar nota..."
+                          title={row.observations || undefined}
+                          className="w-full bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-200 rounded px-2 py-1 transition-all outline-none text-left text-sm text-gray-600 placeholder-gray-300 disabled:cursor-not-allowed print:border-none print:bg-transparent print:p-0 print:ring-0 print:placeholder-transparent"
+                        />
+                        {row.observations && row.observations.trim().length > 0 && (
+                          <div className="absolute left-0 bottom-full mb-2 hidden group-hover/obs:block group-focus-within/obs:block z-30 w-72 bg-gray-900/95 backdrop-blur-sm text-white text-xs rounded-lg p-3 shadow-xl border border-gray-800 pointer-events-none break-words leading-relaxed">
+                            <div className="font-semibold text-gray-400 mb-1">Observação completa:</div>
+                            <div className="text-gray-100">{row.observations}</div>
+                            <div className="absolute top-full left-4 w-2 h-2 bg-gray-900/95 border-r border-b border-gray-800 rotate-45 -translate-y-1"></div>
+                          </div>
+                        )}
+                      </div>
                     </td>
 
                     {/* Status (toggle) */}
@@ -338,11 +410,10 @@ export default function PayrollClient() {
                         <button
                           onClick={() => handleTogglePaid(row.id, row.isPaid)}
                           disabled={pendingPaid}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all duration-200 disabled:opacity-50 ${
-                            row.isPaid
-                              ? "bg-green-500 text-white border-transparent shadow-sm shadow-green-200 hover:bg-green-600"
-                              : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50 hover:border-gray-400"
-                          }`}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all duration-200 disabled:opacity-50 ${row.isPaid
+                            ? "bg-green-500 text-white border-transparent shadow-sm shadow-green-200 hover:bg-green-600"
+                            : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50 hover:border-gray-400"
+                            }`}
                         >
                           {row.isPaid
                             ? <><Check className="h-4 w-4" /> Pago</>
@@ -351,11 +422,10 @@ export default function PayrollClient() {
                         </button>
                       ) : (
                         <span
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all duration-200 ${
-                            row.isPaid
-                              ? "bg-green-100 text-green-700 border-green-200"
-                              : "bg-gray-100 text-gray-600 border-gray-200"
-                          }`}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all duration-200 ${row.isPaid
+                            ? "bg-green-100 text-green-700 border-green-200"
+                            : "bg-gray-100 text-gray-600 border-gray-200"
+                            }`}
                         >
                           {row.isPaid
                             ? <><Check className="h-4 w-4" /> Pago</>
@@ -371,7 +441,9 @@ export default function PayrollClient() {
                         <div className="flex items-start gap-1.5">
                           <ShieldCheck className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
                           <div>
-                            <div className="text-xs font-medium text-green-700">{row.approvedBy}</div>
+                            <div className="text-xs font-medium text-green-700">
+                              {row.approvedBy === session?.user?.name || row.approvedBy === "você" ? "você" : row.approvedBy}
+                            </div>
                             {row.approvedAt && (
                               <div className="text-[10px] text-gray-400">
                                 {new Date(row.approvedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
@@ -395,14 +467,15 @@ export default function PayrollClient() {
 
   return (
     <div className="flex flex-col bg-white min-h-full">
-      <AlertModal 
-        isOpen={errorModal.isOpen} 
+      <AlertModal
+        isOpen={errorModal.isOpen}
         onClose={() => setErrorModal(prev => ({ ...prev, isOpen: false }))}
         title={errorModal.title}
         message={errorModal.message}
         type="error"
       />
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         @media print {
           @page { size: A4 landscape; margin: 8mm; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -412,6 +485,87 @@ export default function PayrollClient() {
           input::placeholder { color: transparent !important; }
         }
       `}} />
+
+      {/* ── Banner de Status do Fluxo de Aprovação ── */}
+      <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 flex flex-wrap justify-between items-center gap-4 print:hidden">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Status da Folha:</span>
+          {sheetStatus.status === "EM_DIGITACAO" && (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200">
+              Em Digitação
+            </span>
+          )}
+          {sheetStatus.status === "ENVIADO" && (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
+              Aguardando Aprovação do Gestor
+            </span>
+          )}
+          {sheetStatus.status === "APROVADO" && (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
+              Aprovado
+            </span>
+          )}
+          
+          <span className="text-xs text-gray-500 font-medium">
+            {sheetStatus.status === "ENVIADO" && sheetStatus.sentBy && (
+              <>Enviado por <strong>{sheetStatus.sentBy}</strong> em {new Date(sheetStatus.sentAt!).toLocaleString("pt-BR")}</>
+            )}
+            {sheetStatus.status === "APROVADO" && sheetStatus.approvedBy && (
+              <>Aprovado por <strong>{sheetStatus.approvedBy}</strong> em {new Date(sheetStatus.approvedAt!).toLocaleString("pt-BR")}</>
+            )}
+          </span>
+        </div>
+
+        {/* Botões de Ação de Fluxo */}
+        <div className="flex items-center gap-2">
+          {isStatusChanging && <Loader2 className="h-4 w-4 animate-spin text-blue-500 mr-2" />}
+          
+          {/* Operador: botão para Enviar */}
+          {!isAdminOrManager && sheetStatus.status === "EM_DIGITACAO" && (
+            <button
+              onClick={handleSubmit}
+              disabled={isStatusChanging || isLoading || rows.length === 0}
+              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50 shadow-sm"
+            >
+              <Send className="h-3.5 w-3.5" />
+              Enviar para Análise
+            </button>
+          )}
+
+          {/* Gestor: botões para Aprovar / Devolver */}
+          {isAdminOrManager && sheetStatus.status === "ENVIADO" && (
+            <>
+              <button
+                onClick={handleReject}
+                disabled={isStatusChanging || isLoading}
+                className="flex items-center gap-1.5 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+              >
+                <Ban className="h-3.5 w-3.5" />
+                Devolver para Correção
+              </button>
+              <button
+                onClick={handleApprove}
+                disabled={isStatusChanging || isLoading}
+                className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50 shadow-sm"
+              >
+                <ClipboardCheck className="h-3.5 w-3.5" />
+                Aprovar Folha
+              </button>
+            </>
+          )}
+
+          {/* Gestor: possibilidade de reabrir se aprovado */}
+          {isAdminOrManager && sheetStatus.status === "APROVADO" && (
+            <button
+              onClick={handleReject}
+              disabled={isStatusChanging || isLoading}
+              className="flex items-center gap-1.5 border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+            >
+              Reabrir para Edição
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* ── Toolbar ── */}
       <div className="px-6 py-4 border-b border-gray-100 bg-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden sticky top-0 z-10 shadow-sm">
@@ -470,17 +624,17 @@ export default function PayrollClient() {
           {/* Sincroniza funcionários cadastrados depois da prévia sem perder dados existentes */}
           <button
             onClick={handleGenerate}
-            disabled={isGenerating || isLoading}
+            disabled={isGenerating || isLoading || !canEdit}
             title="Adiciona à folha funcionários que foram cadastrados após a geração da prévia. Não sobrescreve dados já editados."
             className="flex items-center gap-2 border border-dashed border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
           >
-            {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {isGenerating ? "Sincronizando..." : "Sincronizar Funcionários"}
+            {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            {isGenerating ? "Sincronizando..." : "Sincronizar"}
           </button>
           {rows.length > 0 && (
             <button
               onClick={handleSave}
-              disabled={isSaving || isLoading}
+              disabled={isSaving || isLoading || !canEdit}
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm disabled:opacity-50"
             >
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}

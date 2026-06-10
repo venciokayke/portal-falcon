@@ -9,10 +9,17 @@ import {
 } from "@/actions/overtime";
 import {
   Calendar, Save, Loader2, Printer, Sparkles,
-  Check, RefreshCw
+  Check, RefreshCw, CheckCircle2, ShieldCheck,
+  Send, ClipboardCheck, Ban
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { AlertModal } from "@/components/ui/AlertModal";
+import {
+  getPayrollStatus,
+  submitPayroll,
+  approvePayroll,
+  rejectPayroll,
+} from "@/actions/payroll-status";
 
 const MONTHS = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -35,10 +42,12 @@ type OvertimeRow = {
   totalValue: number;
   observations: string;
   status: string;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
 };
 
 const inputBase =
-  "w-full bg-transparent border border-transparent hover:border-gray-300 focus:border-orange-500 focus:bg-white focus:ring-2 focus:ring-orange-200 rounded px-2 py-1 transition-all outline-none text-right font-medium print:border-none print:bg-transparent print:p-0 print:ring-0 print:appearance-none";
+  "w-full bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-200 rounded px-2 py-1 transition-all outline-none text-right font-medium print:border-none print:bg-transparent print:p-0 print:ring-0 print:appearance-none";
 
 export default function ExtraHoursClient() {
   const currentDate = new Date();
@@ -50,13 +59,30 @@ export default function ExtraHoursClient() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [statusTransition, startStatusTransition] = useTransition();
   const [savedAt, setSavedAt] = useState<string | null>(null);
-  
-  const [errorModal, setErrorModal] = useState<{isOpen: boolean; title: string; message: string}>({
+
+  const [sheetStatus, setSheetStatus] = useState<{
+    status: string;
+    sentAt: string | null;
+    sentBy: string | null;
+    approvedAt: string | null;
+    approvedBy: string | null;
+  }>({
+    status: "EM_DIGITACAO",
+    sentAt: null,
+    sentBy: null,
+    approvedAt: null,
+    approvedBy: null,
+  });
+  const [isStatusChanging, setIsStatusChanging] = useState(false);
+
+  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false, title: "", message: ""
   });
 
   const { data: session } = useSession();
   const isAdminOrManager = (session?.user as any)?.role === "ADMIN" || (session?.user as any)?.role === "MANAGER";
+
+  const canEdit = isAdminOrManager || (sheetStatus.status === "EM_DIGITACAO");
 
   useEffect(() => { loadData(); }, [month, year]);
 
@@ -64,10 +90,50 @@ export default function ExtraHoursClient() {
     setIsLoading(true);
     setSavedAt(null);
     try {
-      const data = await getOvertimeData(month, year);
+      const [data, statusData] = await Promise.all([
+        getOvertimeData(month, year),
+        getPayrollStatus(month, year),
+      ]);
       setRows(data as OvertimeRow[]);
+      setSheetStatus(statusData);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    setIsStatusChanging(true);
+    try {
+      await submitPayroll(month, year);
+      await loadData();
+    } catch {
+      setErrorModal({ isOpen: true, title: "Erro ao enviar", message: "Não foi possível enviar a folha para análise." });
+    } finally {
+      setIsStatusChanging(false);
+    }
+  };
+
+  const handleApprove = async () => {
+    setIsStatusChanging(true);
+    try {
+      await approvePayroll(month, year);
+      await loadData();
+    } catch {
+      setErrorModal({ isOpen: true, title: "Erro ao aprovar", message: "Não foi possível aprovar a folha." });
+    } finally {
+      setIsStatusChanging(false);
+    }
+  };
+
+  const handleReject = async () => {
+    setIsStatusChanging(true);
+    try {
+      await rejectPayroll(month, year);
+      await loadData();
+    } catch {
+      setErrorModal({ isOpen: true, title: "Erro ao recusar", message: "Não foi possível devolver a folha para correção." });
+    } finally {
+      setIsStatusChanging(false);
     }
   };
 
@@ -75,14 +141,14 @@ export default function ExtraHoursClient() {
     setRows(prev => prev.map(r => {
       if (r.id !== id) return r;
       const updated = { ...r, [field]: value };
-      
+
       // Recalculate total if hours change
       if (field === "hours") {
         const h = parseFloat(updated.hours as string) || 0;
         const rate = Number(r.effectiveRate) || 0;
         updated.totalValue = h * rate;
       }
-      
+
       return updated;
     }));
   };
@@ -109,7 +175,12 @@ export default function ExtraHoursClient() {
     startStatusTransition(async () => {
       try {
         await toggleOvertimeStatus(id, newStatus);
-        setRows(prev => prev.map(r => r.id !== id ? r : { ...r, status: newStatus }));
+        setRows(prev => prev.map(r => r.id !== id ? r : {
+          ...r,
+          status: newStatus,
+          approvedBy: newStatus === "PAGO" ? (session?.user?.name ?? "você") : null,
+          approvedAt: newStatus === "PAGO" ? new Date().toISOString() : null,
+        }));
       } catch {
         setErrorModal({ isOpen: true, title: "Erro ao atualizar", message: "Não foi possível alterar o status do pagamento." });
       }
@@ -159,7 +230,7 @@ export default function ExtraHoursClient() {
             )}
           </div>
           <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
-            <span className="bg-orange-50 text-orange-800 border border-orange-200 px-3 py-1 rounded-full text-sm font-semibold whitespace-nowrap">
+            <span className="bg-blue-50 text-blue-800 border border-blue-200 px-3 py-1 rounded-full text-sm font-semibold whitespace-nowrap">
               Total Extras: R$ {totalGroup.toFixed(2)}
             </span>
           </div>
@@ -172,65 +243,105 @@ export default function ExtraHoursClient() {
               <tr className="bg-gray-50 border-b border-gray-200 print:border-black print:bg-gray-100">
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[160px]">Funcionário</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28 text-right">Taxa/Base</th>
-                <th className="px-2 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32 text-center text-orange-600 bg-orange-50/50">Qtd Horas</th>
+                <th className="px-2 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32 text-center text-blue-600 bg-blue-50/50">Qtd Horas</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Valor Total</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[150px]">Observações</th>
-                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24 text-center print:hidden">Status</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28 text-center print:hidden">Status</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32 print:hidden">Aprovação</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {groupRows.map((r) => (
-                <tr key={r.id} className={`transition-colors print:bg-transparent print:hover:bg-transparent ${r.status === "PAGO" ? "bg-green-50/60 hover:bg-green-100/60" : "hover:bg-slate-50"}`}>
-                  <td className="px-4 py-2 border-r border-gray-100 font-medium text-gray-800">
-                    <div className="truncate max-w-[160px] sm:max-w-[200px]" title={r.name}>
-                      {r.name}
+                <tr key={r.id} className={`border-b border-gray-100 transition-colors print:border-black ${r.status === "PAGO" ? "bg-green-50/60 print:bg-transparent" : "bg-white hover:bg-gray-50/70"}`}>
+                  <td className="px-4 py-3 border-r border-gray-100">
+                    <div className="truncate max-w-[160px] sm:max-w-[200px] inline-flex items-center gap-1.5" title={r.name}>
+                      <span className="font-medium text-gray-900 text-sm">{r.name}</span>
+                      {r.status === "PAGO" && (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0 print:hidden" />
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-2 border-r border-gray-100 text-right text-gray-500 text-sm">
                     R$ {r.effectiveRate.toFixed(2)}/h
                   </td>
-                  <td className="px-2 py-1 border-r border-gray-100 bg-orange-50/30">
+                  <td className="px-2 py-1 border-r border-gray-100 bg-blue-50/30">
                     <input
                       type="number" step="0.5" min="0"
                       value={r.hours}
                       onChange={e => handleChange(r.id, "hours", e.target.value)}
-                      className={`${inputBase} text-center`}
+                      disabled={r.status === "PAGO" || !canEdit}
+                      className={`${inputBase} text-center disabled:text-gray-400 disabled:cursor-not-allowed`}
                     />
                   </td>
                   <td className="px-4 py-2 border-r border-gray-100 text-right font-bold text-gray-900 bg-slate-50/50">
                     R$ {r.totalValue.toFixed(2)}
                   </td>
                   <td className="px-2 py-1 border-r border-gray-100">
-                    <input
-                      type="text"
-                      value={r.observations}
-                      onChange={e => handleChange(r.id, "observations", e.target.value)}
-                      placeholder="Motivo / Detalhes"
-                      className="w-full bg-transparent border border-transparent hover:border-gray-300 focus:border-orange-500 focus:bg-white focus:ring-2 focus:ring-orange-200 rounded px-2 py-1 transition-all outline-none text-xs text-gray-600 print:border-none print:p-0 print:bg-transparent print:appearance-none"
-                    />
+                    <div className="relative group/obs w-full">
+                      <input
+                        type="text"
+                        value={r.observations}
+                        onChange={e => handleChange(r.id, "observations", e.target.value)}
+                        placeholder="Motivo / Detalhes"
+                        title={r.observations || undefined}
+                        disabled={r.status === "PAGO" || !canEdit}
+                        className="w-full bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-200 rounded px-2 py-1 transition-all outline-none text-xs text-gray-600 disabled:cursor-not-allowed print:border-none print:p-0 print:bg-transparent print:appearance-none"
+                      />
+                      {r.observations && r.observations.trim().length > 0 && (
+                        <div className="absolute left-0 bottom-full mb-2 hidden group-hover/obs:block group-focus-within/obs:block z-30 w-72 bg-gray-900/95 backdrop-blur-sm text-white text-xs rounded-lg p-3 shadow-xl border border-gray-800 pointer-events-none break-words leading-relaxed">
+                          <div className="font-semibold text-gray-400 mb-1">Observação completa:</div>
+                          <div className="text-gray-100">{r.observations}</div>
+                          <div className="absolute top-full left-4 w-2 h-2 bg-gray-900/95 border-r border-b border-gray-800 rotate-45 -translate-y-1"></div>
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-2 text-center print:hidden">
                     {isAdminOrManager ? (
                       <button
                         onClick={() => handleToggleStatus(r.id, r.status)}
-                        className={`px-3 py-1 text-xs font-bold rounded-full transition-all border ${
-                          r.status === "PAGO"
-                            ? "bg-green-100 text-green-700 border-green-200 hover:bg-green-200"
-                            : "bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200"
-                        }`}
+                        disabled={statusTransition}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all duration-200 disabled:opacity-50 ${r.status === "PAGO"
+                          ? "bg-green-500 text-white border-transparent shadow-sm shadow-green-200 hover:bg-green-600"
+                          : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50 hover:border-gray-400"
+                          }`}
                       >
-                        {r.status}
+                        {r.status === "PAGO"
+                          ? <><Check className="h-4 w-4" /> Pago</>
+                          : <><span className="h-4 w-4 rounded-full border-2 border-gray-300 inline-block" /> Pagar</>
+                        }
                       </button>
                     ) : (
                       <span
-                        className={`px-3 py-1 text-xs font-bold rounded-full border inline-block ${
-                          r.status === "PAGO"
-                            ? "bg-green-100 text-green-700 border-green-200"
-                            : "bg-orange-100 text-orange-700 border-orange-200"
-                        }`}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all duration-200 ${r.status === "PAGO"
+                          ? "bg-green-100 text-green-700 border-green-200"
+                          : "bg-gray-100 text-gray-600 border-gray-200"
+                          }`}
                       >
-                        {r.status}
+                        {r.status === "PAGO"
+                          ? <><Check className="h-4 w-4" /> Pago</>
+                          : <>Pendente</>
+                        }
                       </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 print:hidden">
+                    {r.status === "PAGO" && r.approvedBy ? (
+                      <div className="flex items-start gap-1.5 text-left">
+                        <ShieldCheck className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                        <div>
+                          <div className="text-xs font-medium text-green-700">
+                            {r.approvedBy === session?.user?.name || r.approvedBy === "você" ? "você" : r.approvedBy}
+                          </div>
+                          {r.approvedAt && (
+                            <div className="text-[10px] text-gray-400">
+                              {new Date(r.approvedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-300">—</span>
                     )}
                   </td>
                 </tr>
@@ -243,47 +354,144 @@ export default function ExtraHoursClient() {
   };
 
   return (
-    <div className="space-y-6">
-      <AlertModal 
-        isOpen={errorModal.isOpen} 
+    <div className="flex flex-col bg-white min-h-full">
+      <AlertModal
+        isOpen={errorModal.isOpen}
         onClose={() => setErrorModal(prev => ({ ...prev, isOpen: false }))}
         title={errorModal.title}
         message={errorModal.message}
         type="error"
       />
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @media print {
+          @page { size: A4 landscape; margin: 8mm; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          body, html, #__next, main, .min-h-screen { min-height: 0 !important; height: auto !important; }
+          input { border: none !important; background: transparent !important; padding: 2px 0 !important; box-shadow: none !important; appearance: none; -webkit-appearance: none; }
+          input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+          input::placeholder { color: transparent !important; }
+        }
+      `}} />
 
-      {/* ── Barra Superior (Filtros e Ações) ── */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex flex-wrap gap-4 justify-between items-center print:border-none print:shadow-none print:p-0">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg p-1">
-            <Calendar className="h-4 w-4 text-gray-500 ml-2" />
-            <select
-              value={month}
-              onChange={(e) => setMonth(Number(e.target.value))}
-              className="bg-transparent border-none focus:ring-0 text-sm font-medium text-gray-700 outline-none cursor-pointer py-1"
+      {/* ── Banner de Status do Fluxo de Aprovação ── */}
+      <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 flex flex-wrap justify-between items-center gap-4 print:hidden">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Status da Folha:</span>
+          {sheetStatus.status === "EM_DIGITACAO" && (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200">
+              Em Digitação
+            </span>
+          )}
+          {sheetStatus.status === "ENVIADO" && (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
+              Aguardando Aprovação do Gestor
+            </span>
+          )}
+          {sheetStatus.status === "APROVADO" && (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
+              Aprovado
+            </span>
+          )}
+          
+          <span className="text-xs text-gray-500 font-medium">
+            {sheetStatus.status === "ENVIADO" && sheetStatus.sentBy && (
+              <>Enviado por <strong>{sheetStatus.sentBy}</strong> em {new Date(sheetStatus.sentAt!).toLocaleString("pt-BR")}</>
+            )}
+            {sheetStatus.status === "APROVADO" && sheetStatus.approvedBy && (
+              <>Aprovado por <strong>{sheetStatus.approvedBy}</strong> em {new Date(sheetStatus.approvedAt!).toLocaleString("pt-BR")}</>
+            )}
+          </span>
+        </div>
+
+        {/* Botões de Ação de Fluxo */}
+        <div className="flex items-center gap-2">
+          {isStatusChanging && <Loader2 className="h-4 w-4 animate-spin text-blue-500 mr-2" />}
+          
+          {/* Operador: botão para Enviar */}
+          {!isAdminOrManager && sheetStatus.status === "EM_DIGITACAO" && (
+            <button
+              onClick={handleSubmit}
+              disabled={isStatusChanging || isLoading || rows.length === 0}
+              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50 shadow-sm"
             >
-              {MONTHS.map((m, i) => (
-                <option key={i} value={i}>{m}</option>
-              ))}
-            </select>
-            <span className="text-gray-300">|</span>
-            <select
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-              className="bg-transparent border-none focus:ring-0 text-sm font-medium text-gray-700 outline-none cursor-pointer py-1 pr-2"
+              <Send className="h-3.5 w-3.5" />
+              Enviar para Análise
+            </button>
+          )}
+
+          {/* Gestor: botões para Aprovar / Devolver */}
+          {isAdminOrManager && sheetStatus.status === "ENVIADO" && (
+            <>
+              <button
+                onClick={handleReject}
+                disabled={isStatusChanging || isLoading}
+                className="flex items-center gap-1.5 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+              >
+                <Ban className="h-3.5 w-3.5" />
+                Devolver para Correção
+              </button>
+              <button
+                onClick={handleApprove}
+                disabled={isStatusChanging || isLoading}
+                className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50 shadow-sm"
+              >
+                <ClipboardCheck className="h-3.5 w-3.5" />
+                Aprovar Folha
+              </button>
+            </>
+          )}
+
+          {/* Gestor: possibilidade de reabrir se aprovado */}
+          {isAdminOrManager && sheetStatus.status === "APROVADO" && (
+            <button
+              onClick={handleReject}
+              disabled={isStatusChanging || isLoading}
+              className="flex items-center gap-1.5 border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
             >
-              {Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i).map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
-          </div>
+              Reabrir para Edição
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Toolbar ── */}
+      <div className="px-6 py-4 border-b border-gray-100 bg-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden sticky top-0 z-10 shadow-sm">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Calendar className="text-gray-400 h-5 w-5 shrink-0" />
+          <select
+            value={month}
+            onChange={(e) => setMonth(Number(e.target.value))}
+            className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+          >
+            {MONTHS.map((m, i) => (
+              <option key={i} value={i}>{m}</option>
+            ))}
+          </select>
+          <select
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
+            className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+          >
+            {Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i).map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+          {isLoading && <Loader2 className="h-4 w-4 animate-spin text-blue-500" />}
 
           {rows.length > 0 && (
-            <div className="hidden md:flex gap-4 text-sm print:hidden border-l pl-4">
-              <span className="text-gray-500">
-                Total Geral: <strong className="text-gray-900">R$ {totalGeral.toFixed(2)}</strong>
+            <div className="flex items-center gap-2 ml-1 flex-wrap">
+              <span className="text-xs bg-green-50 text-green-700 border border-green-200 px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {rows.filter(r => r.status === "PAGO").length}/{rows.length} pagos
               </span>
-              <span className="text-xs text-gray-500 flex items-center gap-1">
+              <span className="text-xs text-gray-500">
+                Total: <strong className="text-gray-800">R$ {totalGeral.toFixed(2)}</strong>
+              </span>
+              <span className="text-xs text-gray-500">
+                Pago: <strong className="text-green-700">R$ {totalPago.toFixed(2)}</strong>
+              </span>
+              <span className="text-xs text-gray-500">
                 Pendente: <strong className="text-orange-600">R$ {(totalGeral - totalPago).toFixed(2)}</strong>
               </span>
             </div>
@@ -302,23 +510,24 @@ export default function ExtraHoursClient() {
           >
             <Printer className="h-4 w-4" /> Imprimir
           </button>
-          
-          {/* Botão de sincronização (gera os que faltam) */}
-          <button
-            onClick={handleGenerate}
-            disabled={isGenerating || isLoading}
-            title="Sincroniza novos funcionários à tabela deste mês."
-            className="flex items-center gap-2 border border-dashed border-orange-300 bg-orange-50 hover:bg-orange-100 text-orange-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-          >
-            {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            {isGenerating ? "Sincronizando..." : "Sincronizar"}
-          </button>
+
+          {rows.length > 0 && (
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating || isLoading || !canEdit}
+              title="Adiciona novos colaboradores cadastrados ao período atual sem perder dados existentes."
+              className="flex items-center gap-2 border border-dashed border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {isGenerating ? "Sincronizando..." : "Sincronizar"}
+            </button>
+          )}
 
           {rows.length > 0 && (
             <button
               onClick={handleSave}
-              disabled={isSaving || isLoading}
-              className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm disabled:opacity-50"
+              disabled={isSaving || isLoading || !canEdit}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm disabled:opacity-50"
             >
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {isSaving ? "Salvando..." : "Salvar Alterações"}
@@ -326,6 +535,7 @@ export default function ExtraHoursClient() {
           )}
         </div>
       </div>
+
 
       {/* ── Conteúdo ── */}
       <div className="px-6 pb-10">
@@ -335,8 +545,8 @@ export default function ExtraHoursClient() {
           </div>
         ) : rows.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-28 text-center gap-5">
-            <div className="bg-orange-50 p-5 rounded-full">
-              <Sparkles className="h-12 w-12 text-orange-500" />
+            <div className="bg-blue-50 p-5 rounded-full">
+              <Sparkles className="h-12 w-12 text-blue-500" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-gray-800">Nenhum registro no período</h2>
@@ -346,8 +556,8 @@ export default function ExtraHoursClient() {
             </div>
             <button
               onClick={handleGenerate}
-              disabled={isGenerating}
-              className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-xl font-semibold transition-all shadow-md disabled:opacity-50"
+              disabled={isGenerating || !canEdit}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition-all shadow-md disabled:opacity-50"
             >
               {isGenerating
                 ? <><Loader2 className="h-5 w-5 animate-spin" /> Gerando...</>

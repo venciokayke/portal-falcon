@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Users, Clock, Wallet, Printer,
-  FileSpreadsheet, Ticket, Receipt, LogOut, Settings, Shield
+  FileSpreadsheet, Ticket, Receipt, LogOut, Settings, Shield,
+  Timer
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 
@@ -12,12 +13,17 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const isAdmin = (session?.user as any)?.role === "ADMIN";
+  const mustChangePassword = (session?.user as any)?.mustChangePassword;
+
+  if (pathname === "/login" || pathname === "/mudar-senha" || mustChangePassword) {
+    return null;
+  }
 
   const mainLinks = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/colaboradores", label: "Colaboradores", icon: Users },
     { href: "/ponto", label: "Lançamento de Ponto", icon: Clock },
-    { href: "/horas-extras", label: "Horas Extras", icon: Clock },
+    { href: "/horas-extras", label: "Horas Extras", icon: Timer },
     { href: "/folha", label: "Fechamento de Folha", icon: Wallet },
   ];
 

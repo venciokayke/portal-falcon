@@ -74,6 +74,7 @@ model Employee {
   payrollReceipts      PayrollReceipt[]
   monthlyPayrolls      MonthlyPayroll[]
   overtimeEntries      OvertimeEntry[]
+  absenceExemptions    AbsenceExemption[]
 
   @@map("employees")
 }
@@ -144,16 +145,21 @@ model MonthlyPayroll {
 }
 
 model SystemUser {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String
-  username  String   @unique
-  password  String
-  role      Role     @default(USER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                 String           @id @default(uuid()) @db.Uuid
+  name               String
+  username           String           @unique
+  password           String
+  role               Role             @default(USER)
+  mustChangePassword Boolean          @default(false)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   // Folhas que este usuário aprovou
   approvedPayrolls MonthlyPayroll[]
+  approvedOvertimes OvertimeEntry[]  @relation("OvertimeApprovals")
+  
+  sentSheets        PayrollStatus[]  @relation("SentSheets")
+  approvedSheets    PayrollStatus[]  @relation("ApprovedSheets")
 
   @@map("system_users")
 }
@@ -178,12 +184,49 @@ model OvertimeEntry {
   observations String?  @db.Text
   status       String   @default("PENDENTE") // PENDENTE | PAGO
 
+  // Controle de aprovação/pagamento (igual ao MonthlyPayroll)
+  approvedById String?    @db.Uuid
+  approvedAt   DateTime?
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   employee     Employee @relation(fields: [employeeId], references: [id])
+  approvedBy   SystemUser? @relation("OvertimeApprovals", fields: [approvedById], references: [id])
 
   @@unique([employeeId, month, year])
   @@map("overtime_entries")
+}
+
+model AbsenceExemption {
+  id          String   @id @default(uuid()) @db.Uuid
+  employeeId  String   @db.Uuid
+  startDate   DateTime @db.Date
+  endDate     DateTime @db.Date
+  reason      String   @db.Text
+
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("absence_exemptions")
+}
+
+model PayrollStatus {
+  id           String    @id @default(uuid()) @db.Uuid
+  month        Int
+  year         Int
+  status       String    @default("EM_DIGITACAO") // EM_DIGITACAO | ENVIADO | APROVADO
+  sentAt       DateTime?
+  sentById     String?   @db.Uuid
+  approvedAt   DateTime?
+  approvedById String?   @db.Uuid
+
+  sentBy       SystemUser? @relation("SentSheets", fields: [sentById], references: [id])
+  approvedBy   SystemUser? @relation("ApprovedSheets", fields: [approvedById], references: [id])
+
+  @@unique([month, year])
+  @@map("payroll_statuses")
 }
 

@@ -193,3 +193,43 @@ export async function updateEmployeeParity(id: string, startParity: StartParity)
 
   revalidatePath("/colaboradores");
 }
+
+export async function getAbsenceExemptions(employeeId: string) {
+  const exemptions = await prisma.absenceExemption.findMany({
+    where: { employeeId },
+    orderBy: { startDate: "asc" }
+  });
+  return exemptions.map(ex => ({
+    id: ex.id,
+    employeeId: ex.employeeId,
+    startDate: ex.startDate.toISOString(),
+    endDate: ex.endDate.toISOString(),
+    reason: ex.reason,
+  }));
+}
+
+export async function addAbsenceExemption(employeeId: string, startDateStr: string, endDateStr: string, reason: string) {
+  await prisma.absenceExemption.create({
+    data: {
+      employeeId,
+      startDate: new Date(startDateStr),
+      endDate: new Date(endDateStr),
+      reason,
+    }
+  });
+  revalidatePath("/colaboradores");
+  revalidatePath("/folha");
+  revalidatePath("/horas-extras");
+  revalidatePath("/");
+}
+
+export async function deleteAbsenceExemption(id: string) {
+  await prisma.absenceExemption.delete({
+    where: { id }
+  });
+  revalidatePath("/colaboradores");
+  revalidatePath("/folha");
+  revalidatePath("/horas-extras");
+  revalidatePath("/");
+}
+

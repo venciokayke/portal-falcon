@@ -4,6 +4,7 @@ import { archiveEmployee, updateEmployeeParity } from "@/actions/employee";
 import { Archive, Pencil } from "lucide-react";
 import { useTransition } from "react";
 import EmployeeFormModal from "./EmployeeFormModal";
+import AbsenceExemptionModal from "./AbsenceExemptionModal";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useState } from "react";
 
@@ -126,6 +127,10 @@ export default function EmployeeTable({ employees }: { employees: any[] }) {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          <AbsenceExemptionModal 
+                            employeeId={emp.id}
+                            employeeName={emp.name}
+                          />
                           <EmployeeFormModal 
                             employee={emp} 
                             trigger={
