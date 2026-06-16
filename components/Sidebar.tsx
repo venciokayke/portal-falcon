@@ -15,7 +15,7 @@ export default function Sidebar() {
   const isAdmin = (session?.user as any)?.role === "ADMIN";
   const mustChangePassword = (session?.user as any)?.mustChangePassword;
 
-  if (pathname === "/login" || pathname === "/mudar-senha" || mustChangePassword) {
+  if (pathname === "/login" || pathname === "/setup" || pathname === "/mudar-senha" || mustChangePassword) {
     return null;
   }
 

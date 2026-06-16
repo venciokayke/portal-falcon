@@ -26,10 +26,11 @@ export const config = {
   matcher: [
     /*
      * Protege todas as rotas EXCETO:
+     * - /setup (página de primeiro acesso)
      * - /login (página de login)
      * - /api/auth/* (endpoints internos do NextAuth)
      * - Arquivos estáticos (_next, favicon, etc.)
      */
-    "/((?!login|api/auth|_next/static|_next/image|favicon.ico).*)",
+    "/((?!setup|login|api/auth|_next/static|_next/image|favicon.ico).*)",
   ],
 };
