@@ -192,6 +192,8 @@ export async function updateEmployeeParity(id: string, startParity: StartParity)
   });
 
   revalidatePath("/colaboradores");
+  revalidatePath("/ponto");
+  revalidatePath(`/ponto/${id}`);
 }
 
 export async function getAbsenceExemptions(employeeId: string) {

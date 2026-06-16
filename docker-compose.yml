@@ -6,13 +6,13 @@ services:
     container_name: falcon-postgres
     restart: always
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: password123
-      POSTGRES_DB: falcon_db
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password123}
+      POSTGRES_DB: ${POSTGRES_DB:-falcon_db}
     ports:
-      - "5433:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
     volumes:
-      - ./postgres-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
 
   app:
     build:
@@ -21,12 +21,13 @@ services:
     container_name: falcon-app
     restart: always
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:3000"
     environment:
-      # A string de conexão do Prisma aponta para o serviço 'db' usando as variáveis acima
-      - DATABASE_URL=postgresql://admin:password123@db:5432/falcon_db?schema=public
-      # Configurações do NextAuth para funcionar via Docker
-      - NEXTAUTH_URL=http://localhost:3000
-      - NEXTAUTH_SECRET=super_secret_key_123_mudar_em_prod
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-password123}@db:5432/${POSTGRES_DB:-falcon_db}?schema=public
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-super_secret_key_123_mudar_em_prod}
     depends_on:
       - db
+
+volumes:
+  postgres-data:

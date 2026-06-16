@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { saveShifts, getShifts, deleteShift, updateSavedShift, createEmptyShift } from "@/actions/shift";
+import { updateEmployeeParity } from "@/actions/employee";
 import { Calendar, MapPin, Plus, Trash2, Clock, Printer, CheckCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -26,6 +27,29 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
   const [isSynced, setIsSynced] = useState(true);
   const [isLoadingSaved, setIsLoadingSaved] = useState(false);
   const router = useRouter();
+
+  const [currentParity, setCurrentParity] = useState(employee.startParity);
+
+  useEffect(() => {
+    setCurrentParity(employee.startParity);
+  }, [employee.startParity]);
+
+  const handleParityChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newParity = e.target.value as any;
+    setCurrentParity(newParity);
+    setIsSaving(true);
+    setIsSynced(false);
+    try {
+      await updateEmployeeParity(employee.id, newParity);
+      setIsSynced(true);
+      router.refresh();
+    } catch (error) {
+      console.error("Erro ao atualizar paridade", error);
+      setCurrentParity(employee.startParity);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const loadSavedShifts = useCallback(async () => {
     setIsLoadingSaved(true);
@@ -104,8 +128,8 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
       let calcPrevistas = 0;
       for (let d = 1; d <= daysCount; d++) {
         const isPar = d % 2 === 0;
-        if (employee.startParity === 'PAR' && isPar) calcPrevistas += 12;
-        if (employee.startParity === 'IMPAR' && !isPar) calcPrevistas += 12;
+        if (currentParity === 'PAR' && isPar) calcPrevistas += 12;
+        if (currentParity === 'IMPAR' && !isPar) calcPrevistas += 12;
       }
       horasPrevistas = calcPrevistas;
     }
@@ -234,30 +258,47 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
 
         {/* Controles do Topo (Oculto na Impressão) */}
         <div className="p-6 border-b border-gray-200 bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
-          <div className="flex items-center gap-3">
-            <Calendar className="text-gray-500 h-5 w-5" />
-            <select
-              value={selectedMonth}
-              onChange={e => {
-                setSelectedMonth(Number(e.target.value));
-                setShifts({});
-              }}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700 transition-shadow"
-            >
-              {MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}
-            </select>
-            <select
-              value={selectedYear}
-              onChange={e => {
-                setSelectedYear(Number(e.target.value));
-                setShifts({});
-              }}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700 transition-shadow"
-            >
-              {Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i).map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-3">
+              <Calendar className="text-gray-500 h-5 w-5" />
+              <select
+                value={selectedMonth}
+                onChange={e => {
+                  setSelectedMonth(Number(e.target.value));
+                  setShifts({});
+                }}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700 transition-shadow"
+              >
+                {MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}
+              </select>
+              <select
+                value={selectedYear}
+                onChange={e => {
+                  setSelectedYear(Number(e.target.value));
+                  setShifts({});
+                }}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700 transition-shadow"
+              >
+                {Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i).map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+
+            {employee.workSchedule === 'SCALE_12X36' && (
+              <div className="flex items-center gap-2 border-l border-gray-200 pl-3">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Escala:</span>
+                <select
+                  value={currentParity}
+                  onChange={handleParityChange}
+                  disabled={isSaving}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold text-gray-700 transition-shadow text-xs cursor-pointer"
+                >
+                  <option value="PAR">⚡ Dias Pares</option>
+                  <option value="IMPAR">⚡ Dias Ímpares</option>
+                </select>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -317,8 +358,8 @@ export default function TimeTrackingClient({ employee }: { employee: any }) {
                 let isWorkDay = false;
                 
                 if (employee.workSchedule === 'SCALE_12X36') {
-                  if (employee.startParity === 'PAR' && isPar) isWorkDay = true;
-                  if (employee.startParity === 'IMPAR' && !isPar) isWorkDay = true;
+                  if (currentParity === 'PAR' && isPar) isWorkDay = true;
+                  if (currentParity === 'IMPAR' && !isPar) isWorkDay = true;
                 } else {
                   isWorkDay = !isWeekend;
                 }

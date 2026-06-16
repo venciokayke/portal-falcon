@@ -205,3 +205,41 @@ export async function forceChangeUserPassword(password: string, confirmPassword:
   return { success: true, message: "Senha alterada com sucesso." };
 }
 
+export async function hasNoSystemUsers() {
+  const count = await prisma.systemUser.count();
+  return count === 0;
+}
+
+export async function createInitialAdmin(formData: FormData) {
+  const count = await prisma.systemUser.count();
+  if (count > 0) {
+    throw new Error("O administrador inicial já foi configurado.");
+  }
+
+  const name = (formData.get("name") as string)?.trim();
+  const username = (formData.get("username") as string)?.trim();
+  const password = formData.get("password") as string;
+
+  if (!name || !username || !password) {
+    throw new Error("Todos os campos são obrigatórios.");
+  }
+
+  if (password.length < 6) {
+    throw new Error("A senha deve ter pelo menos 6 caracteres.");
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  await prisma.systemUser.create({
+    data: {
+      name,
+      username,
+      password: hashedPassword,
+      role: Role.ADMIN,
+      mustChangePassword: false,
+    },
+  });
+
+  return { success: true };
+}
+
