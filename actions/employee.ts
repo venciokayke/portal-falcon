@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { ContractType, WorkSchedule, StartParity, RegistrationCompany } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { logActivity } from "@/actions/activity-log";
 
 // ── Utilitário: parse do FormData ─────────────────────────────────────────────
 function parseEmployeeForm(formData: FormData) {
@@ -125,6 +126,8 @@ export async function addEmployee(formData: FormData) {
     },
   });
 
+  await logActivity("CRIAR_COLABORADOR", `Nome: ${data.name} | Contrato: ${data.contractType}`);
+  await logActivity("CRIAR_COLABORADOR", `Nome: ${data.name} | Contrato: ${data.contractType}`);
   revalidatePath("/colaboradores");
 }
 
@@ -134,6 +137,7 @@ export async function archiveEmployee(id: string) {
     data: { isActive: false },
   });
 
+  await logActivity("ARQUIVAR_COLABORADOR", `ID: ${id}`);
   revalidatePath("/colaboradores");
 }
 
@@ -143,6 +147,7 @@ export async function reactivateEmployee(id: string) {
     data: { isActive: true },
   });
 
+  await logActivity("REATIVAR_COLABORADOR", `ID: ${id}`);
   revalidatePath("/colaboradores");
   revalidatePath("/colaboradores/arquivados");
 }
@@ -182,6 +187,7 @@ export async function updateEmployee(id: string, formData: FormData) {
     },
   });
 
+  await logActivity("EDITAR_COLABORADOR", `ID: ${id}`);
   revalidatePath("/colaboradores");
 }
 

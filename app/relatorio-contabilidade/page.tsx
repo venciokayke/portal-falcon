@@ -3,10 +3,13 @@ import AccountingReportClient from "@/app/relatorio-contabilidade/components/Acc
 
 export const dynamic = "force-dynamic";
 
-export default async function RelatorioContabilidadePage() {
+export default async function RelatorioContabilidadePage({ searchParams }: { searchParams: Promise<{ month?: string; year?: string }> }) {
+  const resolvedParams = await searchParams;
   const now = new Date();
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const month = resolvedParams.month ? Number(resolvedParams.month) - 1 : now.getMonth();
+  const year = resolvedParams.year ? Number(resolvedParams.year) : now.getFullYear();
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
 
   const employees = await prisma.employee.findMany({
     where: {
@@ -51,7 +54,7 @@ export default async function RelatorioContabilidadePage() {
         <p className="text-gray-500 mt-1">Preencha os dados e imprima o relatório para envio.</p>
       </div>
       
-      <AccountingReportClient data={reportData} />
+      <AccountingReportClient data={reportData} initialMonth={month} initialYear={year} />
     </div>
   );
 }

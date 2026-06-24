@@ -29,6 +29,7 @@ export const authOptions: NextAuthOptions = {
           username: user.username,
           role: user.role,
           mustChangePassword: user.mustChangePassword,
+          permissions: user.permissions,
         };
       },
     }),
@@ -40,6 +41,7 @@ export const authOptions: NextAuthOptions = {
         token.role = (user as any).role;
         token.username = (user as any).username;
         token.mustChangePassword = (user as any).mustChangePassword;
+        token.permissions = (user as any).permissions;
       }
       return token;
     },
@@ -49,6 +51,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).role = token.role;
         (session.user as any).username = token.username;
         (session.user as any).mustChangePassword = token.mustChangePassword;
+        (session.user as any).permissions = token.permissions;
       }
       return session;
     },

@@ -14,6 +14,8 @@ interface EmployeeBenefit {
   vtValue: string;
 }
 
+const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
 export default function BenefitsReportClient({
   initialData,
   availableExceptions
@@ -201,6 +203,11 @@ export default function BenefitsReportClient({
         <div className="overflow-x-auto print:overflow-visible w-full">
           <table className="w-full text-sm text-left border-collapse print:text-xs">
             <thead className="bg-gray-100 text-gray-700 font-semibold border-b-2 border-gray-300 print:bg-gray-200">
+            <tr className="hidden print:table-row">
+              <th colSpan={7} className="text-center py-4 text-xl font-bold uppercase text-black bg-white border-b-2 border-black">
+                Relatório de Benefícios - {MONTHS[new Date().getMonth()]} / {new Date().getFullYear()}
+              </th>
+            </tr>
               <tr>
                 <th className="px-4 py-3 border-r border-gray-300 w-12 text-center">Nº</th>
                 <th className="px-4 py-3 border-r border-gray-300">FUNCIONÁRIO</th>

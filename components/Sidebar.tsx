@@ -13,29 +13,34 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const isAdmin = (session?.user as any)?.role === "ADMIN";
+  const permissions = (session?.user as any)?.permissions || [];
   const mustChangePassword = (session?.user as any)?.mustChangePassword;
 
   if (pathname === "/login" || pathname === "/setup" || pathname === "/mudar-senha" || mustChangePassword) {
     return null;
   }
 
+  const hasPerm = (p: string) => isAdmin || permissions.includes(p);
+
   const mainLinks = [
-    { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/colaboradores", label: "Colaboradores", icon: Users },
-    { href: "/ponto", label: "Lançamento de Ponto", icon: Clock },
-    { href: "/horas-extras", label: "Horas Extras", icon: Timer },
-    { href: "/folha", label: "Fechamento de Folha", icon: Wallet },
+    ...(hasPerm("VIEW_DASHBOARD") ? [{ href: "/", label: "Dashboard", icon: LayoutDashboard }] : []),
+    ...(hasPerm("MANAGE_EMPLOYEES") ? [{ href: "/colaboradores", label: "Colaboradores", icon: Users }] : []),
+    ...(hasPerm("MANAGE_SHIFTS") ? [{ href: "/ponto", label: "Lançamento de Ponto", icon: Clock }, { href: "/horas-extras", label: "Horas Extras", icon: Timer }] : []),
+    ...(hasPerm("MANAGE_PAYROLL") ? [{ href: "/folha", label: "Fechamento de Folha", icon: Wallet }] : []),
   ];
 
   const reportLinks = [
-    { href: "/imprimir", label: "Folhas de Ponto", icon: Printer },
-    { href: "/relatorio-contabilidade", label: "Relatório Contabilidade", icon: FileSpreadsheet },
-    { href: "/relatorio-beneficios", label: "Relatório de Benefícios", icon: Ticket },
-    { href: "/gerador-recibos", label: "Gerador de Recibos", icon: Receipt },
+    ...(hasPerm("MANAGE_SHIFTS") ? [{ href: "/imprimir", label: "Folhas de Ponto", icon: Printer }] : []),
+    ...(hasPerm("VIEW_REPORTS") ? [
+      { href: "/relatorio-contabilidade", label: "Relatório Contabilidade", icon: FileSpreadsheet },
+      { href: "/relatorio-beneficios", label: "Relatório de Benefícios", icon: Ticket },
+      { href: "/gerador-recibos", label: "Gerador de Recibos", icon: Receipt }
+    ] : []),
   ];
 
   const adminLinks = [
-    { href: "/configuracoes/usuarios", label: "Usuários do Sistema", icon: Shield },
+    ...(isAdmin ? [{ href: "/configuracoes/usuarios", label: "Usuários do Sistema", icon: Shield }] : []),
+    ...(hasPerm("VIEW_AUDIT") ? [{ href: "/configuracoes/auditoria", label: "Auditoria", icon: Shield }] : []),
   ];
 
   const renderLink = (link: { href: string; label: string; icon: any }) => {
@@ -82,7 +87,7 @@ export default function Sidebar() {
         </div>
 
         {/* Configurações Admin */}
-        {isAdmin && (
+        {adminLinks.length > 0 && (
           <div className="space-y-1">
             <p className="text-[10px] uppercase tracking-widest text-gray-500 font-bold px-4 mb-2">Administração</p>
             {adminLinks.map(renderLink)}

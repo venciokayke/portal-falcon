@@ -69,6 +69,7 @@ export default function PayrollClient() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [anonymousPrint, setAnonymousPrint] = useState(false);
   const [pendingPaid, startPaidTransition] = useTransition();
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string }>({
@@ -294,7 +295,8 @@ export default function PayrollClient() {
                   >
                     {/* Nome */}
                     <td className="px-4 py-3">
-                      <span className="font-medium text-gray-900 text-sm">{row.name}</span>
+                      <span className={`font-medium text-gray-900 text-sm ${anonymousPrint ? "print:hidden" : ""}`}>{row.name}</span>
+                      {anonymousPrint && <span className="hidden print:inline font-medium text-gray-500 text-sm">Colaborador {row.id.substring(0,5).toUpperCase()}</span>}
                       {row.isPaid && (
                         <CheckCircle2 className="inline h-3.5 w-3.5 text-green-500 ml-1.5 print:hidden" />
                       )}
@@ -615,6 +617,10 @@ export default function PayrollClient() {
               <Check className="h-3.5 w-3.5" /> Salvo às {savedAt}
             </span>
           )}
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer mr-2">
+            <input type="checkbox" checked={anonymousPrint} onChange={e => setAnonymousPrint(e.target.checked)} className="w-4 h-4 text-blue-600 rounded" />
+            Ocultar Nomes
+          </label>
           <button
             onClick={() => window.print()}
             className="flex items-center gap-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
