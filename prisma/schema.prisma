@@ -75,6 +75,7 @@ model Employee {
   monthlyPayrolls      MonthlyPayroll[]
   overtimeEntries      OvertimeEntry[]
   absenceExemptions    AbsenceExemption[]
+  monthParities        EmployeeMonthParity[]
 
   @@map("employees")
 }
@@ -86,6 +87,8 @@ model Shift {
   location      String
   checkIn       DateTime?
   checkOut      DateTime?
+  hasIntervalHour Boolean  @default(true)
+  observations  String?  @db.Text
 
   employee      Employee @relation(fields: [employeeId], references: [id])
 
@@ -151,6 +154,7 @@ model SystemUser {
   password           String
   role               Role             @default(USER)
   mustChangePassword Boolean          @default(false)
+  permissions        String[]         @default([])
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
@@ -160,6 +164,7 @@ model SystemUser {
   
   sentSheets        PayrollStatus[]  @relation("SentSheets")
   approvedSheets    PayrollStatus[]  @relation("ApprovedSheets")
+  activityLogs      ActivityLog[]
 
   @@map("system_users")
 }
@@ -229,4 +234,39 @@ model PayrollStatus {
   @@unique([month, year])
   @@map("payroll_statuses")
 }
+
+model WorkLocation {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("work_locations")
+}
+
+model EmployeeMonthParity {
+  id          String      @id @default(uuid()) @db.Uuid
+  employeeId  String      @db.Uuid
+  month       Int
+  year        Int
+  startParity StartParity
+
+  employee    Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, month, year])
+  @@map("employee_month_parities")
+}
+
+model ActivityLog {
+  id        String     @id @default(uuid()) @db.Uuid
+  userId    String     @db.Uuid
+  action    String     // Ex: "LOGIN", "EDIT_SHIFT", etc.
+  details   String?    @db.Text
+  createdAt DateTime   @default(now())
+
+  user      SystemUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("activity_logs")
+}
+
 

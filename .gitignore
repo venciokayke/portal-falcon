@@ -20,3 +20,6 @@ yarn-error.log*
 # Sistema (Windows/Mac)
 Thumbs.db
 .DS_Store
+
+# Banco de dados local
+postgres-data/

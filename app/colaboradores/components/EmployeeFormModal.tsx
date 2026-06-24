@@ -11,22 +11,41 @@ type FieldErrors = Partial<Record<
 >>;
 
 const inputClass = (hasError?: boolean) =>
-  `w-full px-3 py-2 border rounded-lg focus:ring-2 outline-none transition-shadow bg-white ${
-    hasError
-      ? "border-red-400 ring-2 ring-red-200 focus:ring-red-300 bg-red-50"
-      : "border-gray-300 focus:ring-blue-500"
+  `w-full px-3 py-2 border rounded-lg focus:ring-2 outline-none transition-shadow bg-white ${hasError
+    ? "border-red-400 ring-2 ring-red-200 focus:ring-red-300 bg-red-50"
+    : "border-gray-300 focus:ring-blue-500"
   }`;
 
 const PAYMENT_METHODS = [
-  { value: "PIX",      label: "PIX",                  icon: CreditCard,  color: "text-blue-600" },
-  { value: "BANCARIA", label: "Transferência Bancária", icon: Landmark,   color: "text-purple-600" },
-  { value: "ESPECIE",  label: "Espécie / Sem PIX",     icon: Banknote,    color: "text-green-600" },
+  { value: "PIX", label: "PIX", icon: CreditCard, color: "text-blue-600" },
+  { value: "BANCARIA", label: "Transferência Bancária", icon: Landmark, color: "text-purple-600" },
+  { value: "ESPECIE", label: "Espécie / Sem PIX", icon: Banknote, color: "text-green-600" },
 ];
 
 const SCALE_LABELS: Record<string, string> = {
   FIXED_220: "Fixo (220h)",
   SCALE_12X36: "Escala 12x36",
   CUSTOM: "Personalizada",
+};
+
+
+const maskCPF_CNPJ = (val: string) => {
+  const v = val.replace(/\D/g, "");
+  if (v.length <= 11) {
+    return v.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})/, "$1-$2");
+  }
+  return v.replace(/(\d{2})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1/$2").replace(/(\d{4})(\d{1,2})/, "$1-$2");
+};
+
+const maskPhone = (val: string) => {
+  const v = val.replace(/\D/g, "");
+  return v.replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d{4})/, "$1-$2").slice(0, 15);
+};
+
+const formatPixKey = (val: string, type: string) => {
+  if (type === "CPF") return maskCPF_CNPJ(val);
+  if (type === "PHONE") return maskPhone(val);
+  return val;
 };
 
 export default function EmployeeFormModal({
@@ -52,8 +71,15 @@ export default function EmployeeFormModal({
   const [paymentMethod, setPaymentMethod] = useState<string>(
     employee?.paymentMethod || "PIX"
   );
-  const [errorModal, setErrorModal] = useState<{isOpen: boolean; title: string; message: string}>({isOpen: false, title: "", message: ""});
+  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string }>({ isOpen: false, title: "", message: "" });
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+
+
+  const initialHours = employee?.standardHours?.split(" AS ") || ["", ""];
+  const [standardHourStart, setStandardHourStart] = useState(initialHours[0] || "");
+  const [standardHourEnd, setStandardHourEnd] = useState(initialHours[1] || "");
+  const [pixType, setPixType] = useState(employee?.pixType || "");
+  const [pixKey, setPixKey] = useState(employee?.pixKey || "");
 
   const clearErrors = () => { setFieldErrors({}); };
 
@@ -116,11 +142,11 @@ export default function EmployeeFormModal({
 
     if (pm === "PIX") {
       if (!pixType) { errors.pixType = true; messages.push("Selecione o Tipo de PIX"); }
-      if (!pixKey)  { errors.pixKey = true;  messages.push("Informe a Chave PIX"); }
+      if (!pixKey) { errors.pixKey = true; messages.push("Informe a Chave PIX"); }
     }
     if (pm === "BANCARIA") {
-      if (!bankName)    { errors.bankName = true;    messages.push("Informe o Banco"); }
-      if (!bankAgency)  { errors.bankAgency = true;  messages.push("Informe a Agência"); }
+      if (!bankName) { errors.bankName = true; messages.push("Informe o Banco"); }
+      if (!bankAgency) { errors.bankAgency = true; messages.push("Informe a Agência"); }
       if (!bankAccount) { errors.bankAccount = true; messages.push("Informe a Conta"); }
     }
 
@@ -134,6 +160,17 @@ export default function EmployeeFormModal({
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+
+    // Combine standard hours
+    if (standardHourStart && standardHourEnd) {
+      formData.set("standardHours", `${standardHourStart} AS ${standardHourEnd}`);
+    } else {
+      formData.set("standardHours", "");
+    }
+
+    // Set default parity since it was removed from form
+    formData.set("startParity", "NONE");
+
     const { valid, errors, message } = validateForm(formData);
 
     if (!valid) {
@@ -159,6 +196,10 @@ export default function EmployeeFormModal({
         setPaymentMethod("PIX");
         setReceivesIntervalHour(false);
         setReceivesNightHazard(false);
+        setStandardHourStart("");
+        setStandardHourEnd("");
+        setPixKey("");
+        setPixType("");
       }
     } catch (err: any) {
       setErrorModal({ isOpen: true, title: "Erro ao salvar", message: err.message });
@@ -196,8 +237,8 @@ export default function EmployeeFormModal({
               </button>
             </div>
 
-            <AlertModal 
-              isOpen={errorModal.isOpen} 
+            <AlertModal
+              isOpen={errorModal.isOpen}
               onClose={() => setErrorModal(prev => ({ ...prev, isOpen: false }))}
               title={errorModal.title}
               message={errorModal.message}
@@ -211,11 +252,10 @@ export default function EmployeeFormModal({
                   key={tab}
                   type="button"
                   onClick={() => setActiveTab(tab)}
-                  className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors relative ${
-                    activeTab === tab
-                      ? "border-blue-600 text-blue-600"
-                      : "border-transparent text-gray-500 hover:text-gray-700"
-                  }`}
+                  className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors relative ${activeTab === tab
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                    }`}
                 >
                   {tab === "base" ? "Dados Base" : "Dados Financeiros"}
                   {tab === "financial" && hasFinancialError(fieldErrors) && (
@@ -225,18 +265,33 @@ export default function EmployeeFormModal({
               ))}
             </div>
 
-            <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-4">
+            <form onSubmit={handleSubmit} onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.target as HTMLElement).tagName !== "BUTTON" && (e.target as HTMLElement).tagName !== "TEXTAREA") {
+                e.preventDefault();
+                const form = e.currentTarget;
+                const elements = Array.from(form.elements).filter(el =>
+                  (el.tagName === "INPUT" || el.tagName === "SELECT" || el.tagName === "BUTTON") &&
+                  !(el as any).hidden && !(el as any).disabled
+                );
+                const index = elements.indexOf(e.target as any);
+                if (index > -1 && elements[index + 1]) {
+                  (elements[index + 1] as HTMLElement).focus();
+                }
+              }
+            }} className="overflow-y-auto p-6 space-y-4">
 
               {/* ── ABA BASE ─────────────────────────────────────────────── */}
               <div className={activeTab === "base" ? "block space-y-4" : "hidden"}>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo</label>
                   <input required name="name" defaultValue={employee?.name} type="text"
-                    className={inputClass()} placeholder="Ex: João da Silva" />
+                    onChange={(e) => e.target.value = e.target.value.toUpperCase()}
+                    className={inputClass()} placeholder="Ex: JOÃO DA SILVA" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Lotação</label>
                   <input name="workLocation" defaultValue={employee?.workLocation || ""} type="text"
+                    onChange={(e) => e.target.value = e.target.value.toUpperCase()}
                     className={inputClass()} placeholder="Ex: SAMAMBAIA, BOI FORTE" />
                 </div>
                 <div>
@@ -279,7 +334,7 @@ export default function EmployeeFormModal({
                     {contractType === "CLT" && (
                       <>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Taxa hora extra <span className="text-xs text-gray-400 font-normal">(Exceção — opcional)</span>
+                          Taxa hora extra <span className="text-xs text-gray-400 font-normal">(opcional)</span>
                         </label>
                         <input name="hourlyRate" defaultValue={employee?.hourlyRate || ""} type="number"
                           step="0.01" min="0" className={inputClass()}
@@ -293,7 +348,7 @@ export default function EmployeeFormModal({
                     {(contractType === "HORISTA" || contractType === "PJ_HORISTA") && (
                       <>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Taxa hora trabalhada <span className="text-xs text-gray-400 font-normal">(Exceção — opcional)</span>
+                          Taxa hora trabalhada <span className="text-xs text-gray-400 font-normal">(opcional)</span>
                         </label>
                         <input name="hourlyRate" defaultValue={employee?.hourlyRate || ""} type="number"
                           step="0.01" min="0" className={inputClass()}
@@ -350,21 +405,20 @@ export default function EmployeeFormModal({
                   )}
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Horário Padrão</label>
-                  <input name="standardHours" defaultValue={employee?.standardHours || ""} type="text"
-                    className={inputClass()} placeholder="Ex: 18:00 AS 06:00HS" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Entrada (Padrão)</label>
+                    <input type="time" value={standardHourStart} onChange={(e) => setStandardHourStart(e.target.value)}
+                      className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Saída (Padrão)</label>
+                    <input type="time" value={standardHourEnd} onChange={(e) => setStandardHourEnd(e.target.value)}
+                      className={inputClass()} />
+                  </div>
                 </div>
 
-                {contractType === "CLT" && (workSchedule === "SCALE_12X36") && (
-                  <div className="animate-in fade-in slide-in-from-top-2 duration-200">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Paridade do Turno (Início)</label>
-                    <select name="startParity" defaultValue={employee?.startParity || "PAR"} className={inputClass()}>
-                      <option value="PAR">Dia Par</option>
-                      <option value="IMPAR">Dia Ímpar</option>
-                    </select>
-                  </div>
-                )}
+
               </div>
 
               {/* ── ABA FINANCEIRA ───────────────────────────────────────── */}
@@ -380,11 +434,10 @@ export default function EmployeeFormModal({
                         key={value}
                         type="button"
                         onClick={() => handlePaymentMethodChange(value)}
-                        className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border-2 transition-all text-xs font-semibold ${
-                          paymentMethod === value
-                            ? `border-blue-500 bg-blue-50 ${color}`
-                            : "border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50"
-                        }`}
+                        className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border-2 transition-all text-xs font-semibold ${paymentMethod === value
+                          ? `border-blue-500 bg-blue-50 ${color}`
+                          : "border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50"
+                          }`}
                       >
                         <Icon className={`h-5 w-5 ${paymentMethod === value ? color : ""}`} />
                         {label}
@@ -398,8 +451,8 @@ export default function EmployeeFormModal({
                   <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de PIX *</label>
-                      <select name="pixType" defaultValue={employee?.pixType || ""}
-                        onChange={() => setFieldErrors(p => ({ ...p, pixType: false, pixKey: false }))}
+                      <select name="pixType" value={pixType}
+                        onChange={(e) => { setPixType(e.target.value); setPixKey(""); setFieldErrors(p => ({ ...p, pixType: false, pixKey: false })); }}
                         className={`${inputClass(fieldErrors.pixType)}`}>
                         <option value="">Selecione...</option>
                         <option value="CPF">CPF / CNPJ</option>
@@ -411,8 +464,8 @@ export default function EmployeeFormModal({
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Chave PIX *</label>
-                      <input name="pixKey" defaultValue={employee?.pixKey || ""} type="text"
-                        onChange={() => setFieldErrors(p => ({ ...p, pixKey: false }))}
+                      <input name="pixKey" value={pixKey} type="text"
+                        onChange={(e) => { setPixKey(formatPixKey(e.target.value, pixType)); setFieldErrors(p => ({ ...p, pixKey: false })); }}
                         className={inputClass(fieldErrors.pixKey)} placeholder="Chave para pagamento" />
                       {fieldErrors.pixKey && <p className="text-xs text-red-500 mt-1">Obrigatório</p>}
                     </div>
@@ -465,26 +518,25 @@ export default function EmployeeFormModal({
                 <div className="space-y-3 pt-2 border-t border-gray-100">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider pt-1">Benefícios</p>
                   {[
-                    { name: "receivesVA",           label: "Recebe Vale Alimentação (VA)",  defaultCheck: employee?.receivesVA,           disabled: false },
-                    { name: "receivesVT",           label: "Recebe Vale Transporte (VT)",   defaultCheck: employee?.receivesVT,           disabled: false },
-                    { name: "receivesIntervalHour", label: "Recebe Hora Intervalar",        defaultCheck: receivesIntervalHour,           disabled: ["HORISTA","PJ_HORISTA","PJ_FIXO"].includes(contractType), controlled: true },
-                    { name: "receivesNightHazard",  label: "Recebe Adicional Noturno (AD)", defaultCheck: receivesNightHazard,            disabled: ["HORISTA","PJ_HORISTA","PJ_FIXO"].includes(contractType), controlled: true },
+                    { name: "receivesVA", label: "Recebe Vale Alimentação (VA)", defaultCheck: employee?.receivesVA, disabled: false },
+                    { name: "receivesVT", label: "Recebe Vale Transporte (VT)", defaultCheck: employee?.receivesVT, disabled: false },
+                    { name: "receivesIntervalHour", label: "Recebe Hora Intervalar", defaultCheck: receivesIntervalHour, disabled: ["HORISTA", "PJ_HORISTA", "PJ_FIXO"].includes(contractType), controlled: true },
+                    { name: "receivesNightHazard", label: "Recebe Adicional Noturno (AD)", defaultCheck: receivesNightHazard, disabled: ["HORISTA", "PJ_HORISTA", "PJ_FIXO"].includes(contractType), controlled: true },
                   ].map(({ name, label, defaultCheck, disabled, controlled }) => (
                     <label key={name}
-                      className={`flex items-center gap-3 p-2 rounded-lg transition-colors border border-transparent ${
-                        disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-50 cursor-pointer hover:border-gray-100"
-                      }`}>
+                      className={`flex items-center gap-3 p-2 rounded-lg transition-colors border border-transparent ${disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-50 cursor-pointer hover:border-gray-100"
+                        }`}>
                       <input
                         type="checkbox"
                         name={name}
                         disabled={disabled}
                         {...(controlled
                           ? {
-                              checked: name === "receivesIntervalHour" ? receivesIntervalHour : receivesNightHazard,
-                              onChange: (e) => name === "receivesIntervalHour"
-                                ? setReceivesIntervalHour(e.target.checked)
-                                : setReceivesNightHazard(e.target.checked)
-                            }
+                            checked: name === "receivesIntervalHour" ? receivesIntervalHour : receivesNightHazard,
+                            onChange: (e) => name === "receivesIntervalHour"
+                              ? setReceivesIntervalHour(e.target.checked)
+                              : setReceivesNightHazard(e.target.checked)
+                          }
                           : { defaultChecked: defaultCheck }
                         )}
                         className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 disabled:cursor-not-allowed"

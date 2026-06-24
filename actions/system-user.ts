@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { Role } from "@prisma/client";
+import { logActivity } from "@/actions/activity-log";
 
 // Utilitário: retorna a sessão atual ou lança erro
 async function requireSession() {
@@ -26,6 +27,7 @@ export async function createSystemUser(formData: FormData) {
   const username = formData.get("username") as string;
   const password = formData.get("password") as string;
   const role = (formData.get("role") as Role) || Role.USER;
+  const permissions = formData.getAll("permissions") as string[];
 
   if (!name || !username || !password) {
     throw new Error("Todos os campos são obrigatórios.");
@@ -44,9 +46,10 @@ export async function createSystemUser(formData: FormData) {
   const hashedPassword = await bcrypt.hash(password, 10);
 
   await prisma.systemUser.create({
-    data: { name, username, password: hashedPassword, role },
+    data: { name, username, password: hashedPassword, role, permissions },
   });
 
+  await logActivity("CRIAR_USUARIO_SISTEMA", `Username: ${username} | Role: ${role}`);
   revalidatePath("/configuracoes/usuarios");
 }
 
@@ -106,6 +109,7 @@ export async function updateSystemUserRole(id: string, newRole: Role) {
     data: { role: newRole },
   });
 
+  await logActivity("ALTERAR_NIVEL_USUARIO", `ID: ${id} | Nova Role: ${newRole}`);
   revalidatePath("/configuracoes/usuarios");
 }
 
@@ -135,6 +139,7 @@ export async function deleteSystemUser(id: string) {
 
   await prisma.systemUser.delete({ where: { id } });
 
+  await logActivity("EXCLUIR_USUARIO", `ID: ${id}`);
   revalidatePath("/configuracoes/usuarios");
 }
 
@@ -164,6 +169,7 @@ export async function resetUserPassword(id: string) {
     },
   });
 
+  await logActivity("RESET_SENHA", `ID: ${id}`);
   revalidatePath("/configuracoes/usuarios");
 
   return { message: "Senha redefinida para Mudar@123" };

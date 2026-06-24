@@ -1,6 +1,8 @@
 "use client";
 
-import { Printer } from "lucide-react";
+import { Printer, Calendar } from "lucide-react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 interface EmployeeData {
   id: string;
@@ -11,7 +13,18 @@ interface EmployeeData {
   intervalarValue: string;
 }
 
-export default function AccountingReportClient({ data }: { data: EmployeeData[] }) {
+const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+export default function AccountingReportClient({ data, initialMonth, initialYear }: { data: EmployeeData[], initialMonth: number, initialYear: number }) {
+  const router = useRouter();
+  const [month, setMonth] = useState(initialMonth);
+  const [year, setYear] = useState(initialYear);
+
+  const handleDateChange = (newMonth: number, newYear: number) => {
+    setMonth(newMonth);
+    setYear(newYear);
+    router.push(`/relatorio-contabilidade?month=${newMonth + 1}&year=${newYear}`);
+  };
   const handlePrint = () => {
     window.print();
   };
@@ -32,7 +45,26 @@ export default function AccountingReportClient({ data }: { data: EmployeeData[] 
         }
       `}} />
 
-      <div className="p-4 border-b border-gray-200 flex justify-end print:hidden bg-gray-50">
+      <div className="p-4 border-b border-gray-200 flex justify-between items-center print:hidden bg-gray-50">
+        <div className="flex items-center gap-3">
+          <Calendar className="text-gray-400 h-5 w-5" />
+          <select
+            value={month}
+            onChange={e => handleDateChange(Number(e.target.value), year)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700"
+          >
+            {MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}
+          </select>
+          <select
+            value={year}
+            onChange={e => handleDateChange(month, Number(e.target.value))}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700"
+          >
+            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </div>
         <button
           onClick={handlePrint}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
@@ -45,6 +77,11 @@ export default function AccountingReportClient({ data }: { data: EmployeeData[] 
       <div className="overflow-x-auto print:overflow-visible w-full">
         <table className="w-full text-sm text-left border-collapse print:text-xs">
           <thead className="bg-gray-100 text-gray-700 font-semibold border-b-2 border-gray-300 print:bg-gray-200">
+            <tr className="hidden print:table-row">
+              <th colSpan={8} className="text-center py-4 text-xl font-bold uppercase text-black bg-white border-b-2 border-black">
+                Relatório de Fechamento - {MONTHS[month]} / {year}
+              </th>
+            </tr>
             <tr>
               <th className="px-4 py-3 border-r border-gray-300">FUNCIONÁRIO</th>
               <th className="px-3 py-3 border-r border-gray-300 w-16 text-center">AD</th>

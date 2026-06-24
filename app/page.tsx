@@ -3,6 +3,7 @@ import { calculatePayroll } from "@/utils/calculatePayroll";
 import { getDaysInMonth } from "date-fns";
 import Link from "next/link";
 import GlobalRatesWidget from "./components/GlobalRatesWidget";
+import CollapsibleOpenShifts from "./components/CollapsibleOpenShifts";
 import { getGlobalRates } from "@/actions/config";
 import {
   Users, DollarSign, UserMinus, Clock, AlertTriangle,
@@ -148,31 +149,7 @@ export default async function DashboardPage() {
 
           {/* Plantões em aberto */}
           {openShiftEmployees.length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 border-l-4 border-l-amber-500 rounded-xl p-4 flex flex-col gap-3 shadow-sm">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />
-                <div>
-                  <h3 className="font-bold text-amber-900 text-sm">
-                    Plantões em aberto precisam de fechamento
-                  </h3>
-                  <p className="text-amber-700 text-xs mt-0.5">Turnos com entrada registrada mas sem horário de saída.</p>
-                </div>
-              </div>
-              <div className="flex flex-col gap-2">
-                {openShiftEmployees.map(emp => (
-                  <Link
-                    key={emp.id}
-                    href={`/ponto/${emp.id}`}
-                    className="flex items-center justify-between px-4 py-2.5 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg hover:bg-yellow-100 transition-colors group"
-                  >
-                    <span className="font-medium text-slate-800 text-sm">{emp.name}</span>
-                    <span className="text-xs font-semibold px-2 py-0.5 bg-yellow-200 text-yellow-900 rounded-full">
-                      {emp.count} turno(s) em aberto →
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            </div>
+            <CollapsibleOpenShifts employees={openShiftEmployees} />
           )}
 
           {/* 💸 Folhas não pagas */}

@@ -3,7 +3,8 @@ import BenefitsReportClient from "./components/BenefitsReportClient";
 
 export const dynamic = "force-dynamic";
 
-export default async function RelatorioBeneficiosPage() {
+export default async function RelatorioBeneficiosPage({ searchParams }: { searchParams: Promise<{ month?: string; year?: string }> }) {
+  const resolvedParams = await searchParams;
   const allEmployees = await prisma.employee.findMany({
     where: {
       isActive: true,

@@ -80,22 +80,9 @@ export default function EmployeeTable({ employees }: { employees: any[] }) {
                       <td className="px-6 py-4 font-medium text-gray-900">{emp.name}</td>
                       <td className="px-6 py-4">{FORMAT_CONTRACT[emp.contractType] || emp.contractType}</td>
                       <td className="px-6 py-4">
-                        {emp.workSchedule === "SCALE_12X36" ? (
-                          <div className="flex items-center gap-2">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              {FORMAT_SCHEDULE[emp.workSchedule]}
-                            </span>
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                              emp.startParity === 'PAR' ? 'bg-blue-50 text-blue-700 border border-blue-200' : emp.startParity === 'IMPAR' ? 'bg-purple-50 text-purple-700 border border-purple-200' : 'bg-gray-50 text-gray-500 border border-gray-200'
-                            }`}>
-                              {emp.startParity === 'PAR' ? '⚡ Pares' : emp.startParity === 'IMPAR' ? '⚡ Ímpares' : 'Paridade não definida'}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {FORMAT_SCHEDULE[emp.workSchedule] || emp.workSchedule}
-                          </span>
-                        )}
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {FORMAT_SCHEDULE[emp.workSchedule] || emp.workSchedule}
+                        </span>
                       </td>
                       <td className="px-6 py-4">
                         {emp.contractType === "PJ_FIXO" || (emp.contractType === "CLT" && emp.baseSalary > 0) ? (
