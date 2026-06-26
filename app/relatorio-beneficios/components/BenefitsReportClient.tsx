@@ -12,6 +12,7 @@ interface EmployeeBenefit {
   vaValue: string;
   vtUnid: string;
   vtValue: string;
+  observations?: string;
 }
 
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -81,6 +82,7 @@ export default function BenefitsReportClient({
         vaValue: "0.00",
         vtUnid: "",
         vtValue: "0.00",
+        observations: "",
       }
     ]);
     setSelectedException("");
@@ -211,10 +213,11 @@ export default function BenefitsReportClient({
               <tr>
                 <th className="px-4 py-3 border-r border-gray-300 w-12 text-center">Nº</th>
                 <th className="px-4 py-3 border-r border-gray-300">FUNCIONÁRIO</th>
-                <th className="px-4 py-3 border-r border-gray-300 w-32">VA UNID.</th>
-                <th className="px-4 py-3 border-r border-gray-300 w-40">VALOR V.A. (R$)</th>
-                <th className="px-4 py-3 border-r border-gray-300 w-32">VT UNID.</th>
-                <th className="px-4 py-3 w-40">VALOR V.T. (R$)</th>
+                <th className="px-4 py-3 border-r border-gray-300 w-24 text-center">VA UNID.</th>
+                <th className="px-4 py-3 border-r border-gray-300 w-32 text-right">VALOR V.A. (R$)</th>
+                <th className="px-4 py-3 border-r border-gray-300 w-24 text-center">VT UNID.</th>
+                <th className="px-4 py-3 border-r border-gray-300 w-32 text-right">VALOR V.T. (R$)</th>
+                <th className="px-4 py-3 w-48">OBSERVAÇÕES</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 border-b border-gray-300">
@@ -270,7 +273,7 @@ export default function BenefitsReportClient({
                   </td>
 
                   {/* VALOR V.T. */}
-                  <td className="px-2 py-1">
+                  <td className="px-2 py-1 border-r border-gray-200">
                     {emp.receivesVT ? (
                       <input
                         type="number" step="0.01"
@@ -282,12 +285,23 @@ export default function BenefitsReportClient({
                       <span className="block text-center text-gray-300 font-medium select-none">—</span>
                     )}
                   </td>
+
+                  {/* OBSERVAÇÕES */}
+                  <td className="px-2 py-1">
+                    <input
+                      type="text"
+                      value={emp.observations || ""}
+                      onChange={(e) => handleUpdate(emp.id, "observations", e.target.value)}
+                      className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:border-none print:p-0"
+                      placeholder="Ex: Notas..."
+                    />
+                  </td>
                 </tr>
               ))}
 
               {data.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                     Nenhum funcionário CLT encontrado.
                   </td>
                 </tr>

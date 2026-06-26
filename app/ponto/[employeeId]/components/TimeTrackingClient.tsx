@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { saveShifts, getShifts, deleteShift, updateSavedShift, createEmptyShift, updateEmployeeMonthParity, syncOvertimeEntry } from "@/actions/shift";
+import { saveShifts, getShifts, deleteShift, updateSavedShift, createEmptyShift, updateEmployeeMonthParity, syncOvertimeEntry, getEmployeeMonthParity } from "@/actions/shift";
 import { Calendar, MapPin, Plus, Trash2, Clock, Printer, CheckCircle, Loader2, MessageSquare, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -68,15 +68,19 @@ export default function TimeTrackingClient({
   const loadSavedShifts = useCallback(async () => {
     setIsLoadingSaved(true);
     try {
-      const data = await getShifts(employee.id, selectedMonth, selectedYear);
+      const [data, parity] = await Promise.all([
+        getShifts(employee.id, selectedMonth, selectedYear),
+        getEmployeeMonthParity(employee.id, selectedMonth, selectedYear)
+      ]);
       setSavedShiftsList(data);
+      setCurrentParity(parity || employee.startParity || "NONE");
       setSavedEdits({}); 
     } catch (error) {
       console.error("Erro ao carregar turnos", error);
     } finally {
       setIsLoadingSaved(false);
     }
-  }, [employee.id, selectedMonth, selectedYear]);
+  }, [employee.id, selectedMonth, selectedYear, employee.startParity]);
 
   useEffect(() => {
     loadSavedShifts();
@@ -581,7 +585,7 @@ export default function TimeTrackingClient({
                           const co = edits.checkOut !== undefined ? edits.checkOut : shift.checkOut;
                           return (
                           <div key={shift.id} className="flex items-center justify-center font-bold text-gray-800 min-h-[46px]">
-                            {calculateShiftHours(ci, co)}
+                            {Math.round(calculateShiftHours(ci, co))}
                           </div>
                         )})}
                       </div>
@@ -672,7 +676,7 @@ export default function TimeTrackingClient({
                       </td>
                       <td className="px-1 py-1 border-r border-black text-center align-middle font-bold">
                         <div className="flex flex-col gap-1">
-                          {savedForDay.length > 0 ? savedForDay.map(s => <span key={s.id}>{calculateShiftHours(s.checkIn, s.checkOut)}</span>) : <span className="text-transparent">.</span>}
+                          {savedForDay.length > 0 ? savedForDay.map(s => <span key={s.id}>{Math.round(calculateShiftHours(s.checkIn, s.checkOut))}</span>) : <span className="text-transparent">.</span>}
                         </div>
                       </td>
                       <td className="px-1 py-1 align-middle text-[10px]">
