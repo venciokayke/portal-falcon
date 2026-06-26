@@ -6,11 +6,12 @@ export const dynamic = "force-dynamic";
 export default async function PontoSelectorPage({
   searchParams,
 }: {
-  searchParams: { month?: string; year?: string };
+  searchParams: Promise<{ month?: string; year?: string }>;
 }) {
+  const resolvedSearchParams = await searchParams;
   const currentDate = new Date();
-  const initialMonth = searchParams.month ? Number(searchParams.month) : currentDate.getMonth() + 1;
-  const initialYear = searchParams.year ? Number(searchParams.year) : currentDate.getFullYear();
+  const initialMonth = resolvedSearchParams.month ? Number(resolvedSearchParams.month) : currentDate.getMonth() + 1;
+  const initialYear = resolvedSearchParams.year ? Number(resolvedSearchParams.year) : currentDate.getFullYear();
 
   // First day of selected month
   const startDate = new Date(initialYear, initialMonth - 1, 1);
@@ -44,9 +45,15 @@ export default async function PontoSelectorPage({
     a.name.localeCompare(b.name)
   );
 
+  const serializedEmployees = employees.map((emp) => ({
+    ...emp,
+    hourlyRate: emp.hourlyRate ? Number(emp.hourlyRate) : null,
+    baseSalary: emp.baseSalary ? Number(emp.baseSalary) : null,
+  }));
+
   return (
     <PontoSelectorClient
-      employees={employees}
+      employees={serializedEmployees}
       initialMonth={initialMonth}
       initialYear={initialYear}
     />

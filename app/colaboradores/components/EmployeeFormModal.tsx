@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, X, AlertCircle, CreditCard, Landmark, Banknote, UserCircle, Briefcase, AlertTriangle, Info } from "lucide-react";
 import { addEmployee, updateEmployee } from "@/actions/employee";
 import { AlertModal } from "@/components/ui/AlertModal";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { getWorkLocations } from "@/actions/workLocation";
 
 type FieldErrors = Partial<Record<
   "baseSalary" | "hourlyRate" | "pixType" | "pixKey" | "bankName" | "bankAgency" | "bankAccount",
@@ -56,6 +58,13 @@ export default function EmployeeFormModal({
   trigger?: React.ReactNode;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [workLocations, setWorkLocations] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      getWorkLocations().then(setWorkLocations).catch(console.error);
+    }
+  }, [isOpen]);
   const [workSchedule, setWorkSchedule] = useState(employee?.workSchedule || "FIXED_220");
   const [contractType, setContractType] = useState(employee?.contractType || "CLT");
   const [registrationCompany, setRegistrationCompany] = useState(
@@ -73,6 +82,8 @@ export default function EmployeeFormModal({
   );
   const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string }>({ isOpen: false, title: "", message: "" });
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [confirmBenefitsOpen, setConfirmBenefitsOpen] = useState(false);
+  const [pendingFormData, setPendingFormData] = useState<FormData | null>(null);
 
 
   const initialHours = employee?.standardHours?.split(" AS ") || ["", ""];
@@ -141,8 +152,7 @@ export default function EmployeeFormModal({
     }
 
     if (pm === "PIX") {
-      if (!pixType) { errors.pixType = true; messages.push("Selecione o Tipo de PIX"); }
-      if (!pixKey) { errors.pixKey = true; messages.push("Informe a Chave PIX"); }
+      if (pixKey && !pixType) { errors.pixType = true; messages.push("Selecione o Tipo de PIX para a chave informada"); }
     }
     if (pm === "BANCARIA") {
       if (!bankName) { errors.bankName = true; messages.push("Informe o Banco"); }
@@ -156,6 +166,32 @@ export default function EmployeeFormModal({
   const hasFinancialError = (errors: FieldErrors) =>
     errors.baseSalary || errors.hourlyRate || errors.pixType || errors.pixKey ||
     errors.bankName || errors.bankAgency || errors.bankAccount;
+
+  const saveEmployeeData = async (formData: FormData) => {
+    try {
+      if (employee) {
+        await updateEmployee(employee.id, formData);
+      } else {
+        await addEmployee(formData);
+      }
+      setIsOpen(false);
+      if (!employee) {
+        setActiveTab("base");
+        setWorkSchedule("FIXED_220");
+        setContractType("CLT");
+        setRegistrationCompany("NAO_REGISTRADO");
+        setPaymentMethod("PIX");
+        setReceivesIntervalHour(false);
+        setReceivesNightHazard(false);
+        setStandardHourStart("");
+        setStandardHourEnd("");
+        setPixKey("");
+        setPixType("");
+      }
+    } catch (err: any) {
+      setErrorModal({ isOpen: true, title: "Erro ao salvar", message: err.message });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -181,29 +217,20 @@ export default function EmployeeFormModal({
     }
 
     clearErrors();
-    try {
-      if (employee) {
-        await updateEmployee(employee.id, formData);
-      } else {
-        await addEmployee(formData);
-      }
-      setIsOpen(false);
-      if (!employee) {
-        setActiveTab("base");
-        setWorkSchedule("FIXED_220");
-        setContractType("CLT");
-        setRegistrationCompany("NAO_REGISTRADO");
-        setPaymentMethod("PIX");
-        setReceivesIntervalHour(false);
-        setReceivesNightHazard(false);
-        setStandardHourStart("");
-        setStandardHourEnd("");
-        setPixKey("");
-        setPixType("");
-      }
-    } catch (err: any) {
-      setErrorModal({ isOpen: true, title: "Erro ao salvar", message: err.message });
+
+    const receivesVA = formData.get("receivesVA") === "on";
+    const receivesVT = formData.get("receivesVT") === "on";
+    const receivesIntervalHour = formData.get("receivesIntervalHour") === "on";
+    const receivesNightHazard = formData.get("receivesNightHazard") === "on";
+    const hasAnyBenefit = receivesVA || receivesVT || receivesIntervalHour || receivesNightHazard;
+
+    if (contractType === "CLT" && !hasAnyBenefit) {
+      setPendingFormData(formData);
+      setConfirmBenefitsOpen(true);
+      return;
     }
+
+    await saveEmployeeData(formData);
   };
 
   const isPJFix = contractType === "PJ_FIXO" || contractType === "CLT";
@@ -243,6 +270,25 @@ export default function EmployeeFormModal({
               title={errorModal.title}
               message={errorModal.message}
               type="error"
+            />
+
+            <ConfirmModal
+              isOpen={confirmBenefitsOpen}
+              onClose={() => {
+                setConfirmBenefitsOpen(false);
+                setPendingFormData(null);
+              }}
+              onConfirm={async () => {
+                if (pendingFormData) {
+                  await saveEmployeeData(pendingFormData);
+                }
+              }}
+              title="Confirmar Cadastro"
+              message={`Este colaborador está contratado sob o regime CLT, porém não possui nenhum benefício ativo (Vale Alimentação, Vale Transporte, Hora Intervalar ou Adicional Noturno).
+
+Você tem certeza que deseja salvar sem benefícios?`}
+              confirmText="Sim, salvar"
+              cancelText="Voltar"
             />
 
             {/* Abas */}
@@ -290,9 +336,14 @@ export default function EmployeeFormModal({
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Lotação</label>
-                  <input name="workLocation" defaultValue={employee?.workLocation || ""} type="text"
-                    onChange={(e) => e.target.value = e.target.value.toUpperCase()}
-                    className={inputClass()} placeholder="Ex: SAMAMBAIA, BOI FORTE" />
+                  <select name="workLocation" defaultValue={employee?.workLocation || ""} className={inputClass()}>
+                    <option value="">Selecione...</option>
+                    {workLocations.map((loc) => (
+                      <option key={loc.id} value={loc.name}>
+                        {loc.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Empresa de Registro</label>
@@ -450,7 +501,7 @@ export default function EmployeeFormModal({
                 {paymentMethod === "PIX" && (
                   <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de PIX *</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de PIX <span className="text-xs text-gray-400 font-normal">(opcional)</span></label>
                       <select name="pixType" value={pixType}
                         onChange={(e) => { setPixType(e.target.value); setPixKey(""); setFieldErrors(p => ({ ...p, pixType: false, pixKey: false })); }}
                         className={`${inputClass(fieldErrors.pixType)}`}>
@@ -460,10 +511,10 @@ export default function EmployeeFormModal({
                         <option value="EMAIL">E-mail</option>
                         <option value="RANDOM">Chave Aleatória</option>
                       </select>
-                      {fieldErrors.pixType && <p className="text-xs text-red-500 mt-1">Obrigatório</p>}
+                      {fieldErrors.pixType && <p className="text-xs text-red-500 mt-1">Obrigatório para a chave informada</p>}
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Chave PIX *</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Chave PIX <span className="text-xs text-gray-400 font-normal">(opcional)</span></label>
                       <input name="pixKey" value={pixKey} type="text"
                         onChange={(e) => { setPixKey(formatPixKey(e.target.value, pixType)); setFieldErrors(p => ({ ...p, pixKey: false })); }}
                         className={inputClass(fieldErrors.pixKey)} placeholder="Chave para pagamento" />

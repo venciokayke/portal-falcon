@@ -53,6 +53,62 @@ export async function createSystemUser(formData: FormData) {
   revalidatePath("/configuracoes/usuarios");
 }
 
+export async function updateSystemUser(id: string, formData: FormData) {
+  const currentUser = await requireSession();
+  if (currentUser.role !== "ADMIN") {
+    throw new Error("Acesso negado. Apenas administradores podem gerenciar usuários do sistema.");
+  }
+
+  const name = formData.get("name") as string;
+  const username = formData.get("username") as string;
+  const role = (formData.get("role") as Role) || Role.USER;
+  const permissions = formData.getAll("permissions") as string[];
+  const password = formData.get("password") as string;
+
+  if (!name || !username) {
+    throw new Error("Nome e usuário são obrigatórios.");
+  }
+
+  const existing = await prisma.systemUser.findFirst({
+    where: { username, NOT: { id } }
+  });
+  if (existing) {
+    throw new Error("Este nome de usuário já está em uso.");
+  }
+
+  // Prevent editing role of last admin
+  const targetUser = await prisma.systemUser.findUnique({ where: { id } });
+  if (!targetUser) throw new Error("Usuário não encontrado.");
+  if (targetUser.role === "ADMIN" && role !== "ADMIN") {
+    const adminCount = await prisma.systemUser.count({ where: { role: "ADMIN" } });
+    if (adminCount <= 1) {
+      throw new Error("Não é possível rebaixar o único administrador do sistema.");
+    }
+  }
+
+  const updateData: any = {
+    name,
+    username,
+    role,
+    permissions
+  };
+
+  if (password && password.length >= 6) {
+    updateData.password = await bcrypt.hash(password, 10);
+    if (currentUser.id !== id) {
+      updateData.mustChangePassword = true;
+    }
+  }
+
+  await prisma.systemUser.update({
+    where: { id },
+    data: updateData
+  });
+
+  await logActivity("EDITAR_USUARIO_SISTEMA", `Username: ${username} | Role: ${role}`);
+  revalidatePath("/configuracoes/usuarios");
+}
+
 export async function updateSystemUserPassword(id: string, password: string) {
   const currentUser = await requireSession();
 

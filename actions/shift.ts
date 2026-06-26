@@ -209,3 +209,17 @@ export async function syncOvertimeEntry(employeeId: string, month: number, year:
     }
   });
 }
+
+export async function getEmployeeMonthParity(employeeId: string, month: number, year: number) {
+  const monthParity = await prisma.employeeMonthParity.findUnique({
+    where: {
+      employeeId_month_year: {
+        employeeId,
+        month,
+        year
+      }
+    }
+  });
+  return monthParity?.startParity || null;
+}
+

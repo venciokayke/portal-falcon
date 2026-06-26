@@ -2,8 +2,9 @@
 
 import { useTransition } from "react";
 import { deleteSystemUser, resetUserPassword } from "@/actions/system-user";
-import { Trash2, ShieldCheck, Shield, User, RefreshCw } from "lucide-react";
+import { Trash2, ShieldCheck, Shield, User, RefreshCw, Pencil } from "lucide-react";
 import PasswordChangeModal from "./PasswordChangeModal";
+import UserFormModal from "./UserFormModal";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { AlertModal } from "@/components/ui/AlertModal";
 import { useState } from "react";
@@ -122,6 +123,16 @@ export default function UserTable({ users }: { users: any[] }) {
                     >
                       <RefreshCw className="h-5 w-5" />
                     </button>
+                  )}
+                  {isAdmin && (
+                    <UserFormModal
+                      user={user}
+                      trigger={
+                        <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar Usuário">
+                          <Pencil className="h-5 w-5" />
+                        </button>
+                      }
+                    />
                   )}
                   <PasswordChangeModal userId={user.id} userName={user.name} />
                   <button

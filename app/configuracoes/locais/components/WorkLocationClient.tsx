@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createWorkLocation, deleteWorkLocation } from "@/actions/workLocation";
 import { MapPin, Trash2, Plus } from "lucide-react";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { AlertModal } from "@/components/ui/AlertModal";
 
 type WorkLocation = {
   id: string;
@@ -20,7 +21,7 @@ export default function WorkLocationClient({
   const [locations, setLocations] = useState<WorkLocation[]>(initialLocations);
   const [newName, setNewName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState("");
+  const [alertModal, setAlertModal] = useState<{ isOpen: boolean; title: string; message: string }>({ isOpen: false, title: "", message: "" });
   const [locationToDelete, setLocationToDelete] = useState<WorkLocation | null>(null);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -28,7 +29,6 @@ export default function WorkLocationClient({
     if (!newName.trim()) return;
 
     setIsSubmitting(true);
-    setError("");
 
     const res = await createWorkLocation(newName.trim());
 
@@ -41,7 +41,7 @@ export default function WorkLocationClient({
       // To reflect changes immediately without full reload, we can just do a hard refresh or update state.
       window.location.reload(); 
     } else {
-      setError(res.error || "Erro desconhecido");
+      setAlertModal({ isOpen: true, title: "Erro ao criar local", message: res.error || "Erro desconhecido" });
     }
     
     setIsSubmitting(false);
@@ -54,7 +54,7 @@ export default function WorkLocationClient({
     if (res.success) {
       window.location.reload();
     } else {
-      alert(res.error);
+      setAlertModal({ isOpen: true, title: "Erro ao excluir local", message: res.error || "Erro desconhecido" });
     }
     setLocationToDelete(null);
   };
@@ -71,7 +71,6 @@ export default function WorkLocationClient({
             className="w-full px-4 py-2 border rounded-md uppercase"
             disabled={isSubmitting}
           />
-          {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
         </div>
         <button
           type="submit"
@@ -135,6 +134,14 @@ export default function WorkLocationClient({
           onClose={() => setLocationToDelete(null)}
         />
       )}
+
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={() => setAlertModal(prev => ({ ...prev, isOpen: false }))}
+        title={alertModal.title}
+        message={alertModal.message}
+        type="error"
+      />
     </div>
   );
 }

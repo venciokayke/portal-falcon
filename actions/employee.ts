@@ -74,8 +74,9 @@ function validateEmployeeData(data: ReturnType<typeof parseEmployeeForm>) {
 
   // Validação por método de pagamento
   if (data.paymentMethod === "PIX") {
-    if (!data.pixType) errors.push("Selecione o Tipo de PIX.");
-    if (!data.pixKey) errors.push("A Chave PIX é obrigatória.");
+    if (data.pixKey && !data.pixType) {
+      errors.push("Selecione o Tipo de PIX para a chave informada.");
+    }
   }
 
   if (data.paymentMethod === "BANCARIA") {
