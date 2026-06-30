@@ -22,4 +22,7 @@ Thumbs.db
 .DS_Store
 
 # Banco de dados local
-postgres-data/
+postgres-data/
+
+# Rascunhos e scripts locais temporários
+scratch/
