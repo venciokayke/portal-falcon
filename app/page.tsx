@@ -206,9 +206,9 @@ export default async function DashboardPage() {
           <div className="p-3 bg-emerald-100 rounded-lg text-emerald-600">
             <DollarSign className="h-6 w-6" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-medium text-slate-500">Projeção Variável</p>
-            <h3 className="text-2xl font-bold text-slate-800">{fmt.format(projectedFinancial)}</h3>
+            <h3 className="text-2xl font-bold text-slate-800 whitespace-nowrap tabular-nums">{fmt.format(projectedFinancial)}</h3>
           </div>
         </div>
 
@@ -226,9 +226,9 @@ export default async function DashboardPage() {
           <div className="p-3 bg-blue-100 rounded-lg text-blue-600">
             <Clock className="h-6 w-6" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-medium text-slate-500">Horas Extras Totais</p>
-            <h3 className="text-2xl font-bold text-slate-800">{totalOvertimeHours.toFixed(1)}h</h3>
+            <h3 className="text-2xl font-bold text-slate-800 whitespace-nowrap tabular-nums">{totalOvertimeHours.toFixed(1)}h</h3>
           </div>
         </div>
       </div>

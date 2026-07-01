@@ -241,25 +241,25 @@ export default function PayrollClient() {
             )}
           </div>
           <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
-            <span className="bg-green-50 text-green-800 border border-green-200 px-3 py-1 rounded-full text-sm font-semibold whitespace-nowrap">
-              Total: R$ {totalGroup.toFixed(2)}
+            <span className="bg-green-50 text-green-800 border border-green-200 px-3 py-1 rounded-full text-sm font-semibold whitespace-nowrap tabular-nums">
+              Total: R$ {totalGroup.toFixed(2)}
             </span>
-            <span className="bg-gray-50 text-gray-600 border border-gray-200 px-3 py-1 rounded-full text-xs whitespace-nowrap print:hidden">
-              Base: R$ {totalBase.toFixed(2)}
+            <span className="bg-gray-50 text-gray-600 border border-gray-200 px-3 py-1 rounded-full text-xs whitespace-nowrap tabular-nums print:hidden">
+              Base: R$ {totalBase.toFixed(2)}
             </span>
             {totalExtras > 0 && (
-              <span className="bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full text-xs whitespace-nowrap print:hidden">
-                Extras: R$ {totalExtras.toFixed(2)}
+              <span className="bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full text-xs whitespace-nowrap tabular-nums print:hidden">
+                Extras: R$ {totalExtras.toFixed(2)}
               </span>
             )}
             {totalVT > 0 && (
-              <span className="bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1 rounded-full text-xs whitespace-nowrap print:hidden">
-                VT: R$ {totalVT.toFixed(2)}
+              <span className="bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1 rounded-full text-xs whitespace-nowrap tabular-nums print:hidden">
+                VT: R$ {totalVT.toFixed(2)}
               </span>
             )}
             {totalDesc > 0 && (
-              <span className="bg-red-50 text-red-700 border border-red-200 px-3 py-1 rounded-full text-xs whitespace-nowrap print:hidden">
-                Desc.: R$ {totalDesc.toFixed(2)}
+              <span className="bg-red-50 text-red-700 border border-red-200 px-3 py-1 rounded-full text-xs whitespace-nowrap tabular-nums print:hidden">
+                Desc.: R$ {totalDesc.toFixed(2)}
               </span>
             )}
           </div>
@@ -271,15 +271,15 @@ export default function PayrollClient() {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200 print:border-black print:bg-gray-100">
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[160px]">Funcionário</th>
-                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-40">Dados de Pagamento</th>
-                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Valor a Pagar</th>
-                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28 text-right">Base / Salário</th>
-                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28 text-right">Valores Extras</th>
-                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28 text-right">Vale Transp.</th>
-                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28 text-right">Descontos</th>
-                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Observações</th>
-                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28 text-center print:hidden">Status</th>
-                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32 print:hidden">Aprovação</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[140px]">Dados de Pagamento</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[110px] text-right">Valor a Pagar</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[100px] text-right">Base / Salário</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[100px] text-right">Valores Extras</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[100px] text-right">Vale Transp.</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[100px] text-right">Descontos</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[140px]">Observações</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[100px] text-center print:hidden">Status</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[120px] print:hidden">Aprovação</th>
               </tr>
             </thead>
             <tbody>
@@ -332,8 +332,8 @@ export default function PayrollClient() {
 
                     {/* Valor a Pagar */}
                     <td className="px-4 py-3 text-right">
-                      <span className="font-bold text-md text-gray-900">
-                        R$ {rowTotal.toFixed(2)}
+                      <span className="font-bold text-md text-gray-900 whitespace-nowrap tabular-nums">
+                        R$ {rowTotal.toFixed(2)}
                       </span>
                     </td>
 
@@ -489,9 +489,9 @@ export default function PayrollClient() {
       `}} />
 
       {/* ── Banner de Status do Fluxo de Aprovação ── */}
-      <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 flex flex-wrap justify-between items-center gap-4 print:hidden">
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Status da Folha:</span>
+      <div className="px-4 sm:px-6 py-3 bg-gray-50 border-b border-gray-200 flex flex-wrap justify-between items-center gap-3 print:hidden">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider shrink-0">Status da Folha:</span>
           {sheetStatus.status === "EM_DIGITACAO" && (
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200">
               Em Digitação
@@ -519,7 +519,7 @@ export default function PayrollClient() {
         </div>
 
         {/* Botões de Ação de Fluxo */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center flex-wrap gap-2 shrink-0">
           {isStatusChanging && <Loader2 className="h-4 w-4 animate-spin text-blue-500 mr-2" />}
           
           {/* Operador: botão para Enviar */}
@@ -570,8 +570,8 @@ export default function PayrollClient() {
       </div>
 
       {/* ── Toolbar ── */}
-      <div className="px-6 py-4 border-b border-gray-100 bg-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden sticky top-0 z-10 shadow-sm">
-        <div className="flex items-center gap-3 flex-wrap">
+      <div className="px-4 sm:px-6 py-4 border-b border-gray-100 bg-white flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 print:hidden sticky top-0 z-10 shadow-sm">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
           <Calendar className="text-gray-400 h-5 w-5 shrink-0" />
           <select
             value={month}
@@ -589,61 +589,61 @@ export default function PayrollClient() {
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
-          {isLoading && <Loader2 className="h-4 w-4 animate-spin text-blue-500" />}
+          {isLoading && <Loader2 className="h-4 w-4 animate-spin text-blue-500 shrink-0" />}
 
           {/* KPIs inline */}
           {rows.length > 0 && (
-            <div className="flex items-center gap-2 ml-1 flex-wrap">
-              <span className="text-xs bg-green-50 text-green-700 border border-green-200 px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
-                <CheckCircle2 className="h-3.5 w-3.5" />
+            <div className="flex items-center gap-x-3 gap-y-1 ml-1 flex-wrap">
+              <span className="text-xs bg-green-50 text-green-700 border border-green-200 px-2.5 py-1 rounded-full font-medium flex items-center gap-1 whitespace-nowrap">
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
                 {paidCount}/{rows.length} pagos
               </span>
-              <span className="text-xs text-gray-500">
-                Total: <strong className="text-gray-800">R$ {totalAPagar.toFixed(2)}</strong>
+              <span className="text-xs text-gray-500 whitespace-nowrap">
+                Total: <strong className="text-gray-800 tabular-nums">R$ {totalAPagar.toFixed(2)}</strong>
               </span>
-              <span className="text-xs text-gray-500">
-                Pago: <strong className="text-green-700">R$ {totalPago.toFixed(2)}</strong>
+              <span className="text-xs text-gray-500 whitespace-nowrap">
+                Pago: <strong className="text-green-700 tabular-nums">R$ {totalPago.toFixed(2)}</strong>
               </span>
-              <span className="text-xs text-gray-500">
-                Pendente: <strong className="text-orange-600">R$ {(totalAPagar - totalPago).toFixed(2)}</strong>
+              <span className="text-xs text-gray-500 whitespace-nowrap">
+                Pendente: <strong className="text-orange-600 tabular-nums">R$ {(totalAPagar - totalPago).toFixed(2)}</strong>
               </span>
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
           {savedAt && (
-            <span className="text-xs text-green-600 flex items-center gap-1 mr-1">
-              <Check className="h-3.5 w-3.5" /> Salvo às {savedAt}
+            <span className="text-xs text-green-600 flex items-center gap-1 whitespace-nowrap shrink-0">
+              <Check className="h-3.5 w-3.5 shrink-0" /> Salvo às {savedAt}
             </span>
           )}
-          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer mr-2">
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer whitespace-nowrap shrink-0">
             <input type="checkbox" checked={anonymousPrint} onChange={e => setAnonymousPrint(e.target.checked)} className="w-4 h-4 text-blue-600 rounded" />
             Ocultar Nomes
           </label>
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="flex items-center gap-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors shrink-0 whitespace-nowrap"
           >
-            <Printer className="h-4 w-4" /> Imprimir
+            <Printer className="h-4 w-4 shrink-0" /> Imprimir
           </button>
           {/* Sincroniza funcionários cadastrados depois da prévia sem perder dados existentes */}
           <button
             onClick={handleGenerate}
             disabled={isGenerating || isLoading || !canEdit}
             title="Adiciona à folha funcionários que foram cadastrados após a geração da prévia. Não sobrescreve dados já editados."
-            className="flex items-center gap-2 border border-dashed border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 border border-dashed border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 shrink-0 whitespace-nowrap"
           >
-            {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            {isGenerating ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <RefreshCw className="h-4 w-4 shrink-0" />}
             {isGenerating ? "Sincronizando..." : "Sincronizar"}
           </button>
           {rows.length > 0 && (
             <button
               onClick={handleSave}
               disabled={isSaving || isLoading || !canEdit}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm disabled:opacity-50"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm disabled:opacity-50 shrink-0 whitespace-nowrap"
             >
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <Save className="h-4 w-4 shrink-0" />}
               {isSaving ? "Salvando..." : "Salvar Alterações"}
             </button>
           )}

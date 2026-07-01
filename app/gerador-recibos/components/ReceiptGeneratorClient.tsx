@@ -491,36 +491,36 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
       {receiptQueue.length > 0 && (
         <div className="no-print bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-8">
           <div className="p-5 border-b border-gray-200 bg-gray-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="flex items-center gap-4">
-              <h3 className="font-bold text-gray-800">
+            <div className="flex flex-wrap items-center gap-3">
+              <h3 className="font-bold text-gray-800 shrink-0">
                 Fila de Impressão ({receiptQueue.length})
               </h3>
 
               {/* Controles de Ação em Lote */}
-              <div className="flex items-center gap-2 ml-4">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={toggleSelectAll}
-                  className="flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 px-3 py-1.5 rounded-md"
+                  className="flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 px-3 py-1.5 rounded-md whitespace-nowrap"
                 >
-                  <CheckSquare className="h-4 w-4" />
+                  <CheckSquare className="h-4 w-4 shrink-0" />
                   {selectedReceipts.size === receiptQueue.length ? "Desmarcar Todos" : "Selecionar Todos"}
                 </button>
 
                 {selectedReceipts.size > 0 && (
                   <button
                     onClick={handleDeleteSelected}
-                    className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-800 transition-colors bg-red-50 px-3 py-1.5 rounded-md"
+                    className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-800 transition-colors bg-red-50 px-3 py-1.5 rounded-md whitespace-nowrap"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4 shrink-0" />
                     Excluir ({selectedReceipts.size})
                   </button>
                 )}
 
                 <button
                   onClick={handleClearAll}
-                  className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors bg-slate-100 px-3 py-1.5 rounded-md border border-slate-300 ml-2"
+                  className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors bg-slate-100 px-3 py-1.5 rounded-md border border-slate-300 whitespace-nowrap"
                 >
-                  <XSquare className="h-4 w-4" />
+                  <XSquare className="h-4 w-4 shrink-0" />
                   Limpar Fila
                 </button>
               </div>
@@ -537,21 +537,21 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
           <div className="p-0">
             <ul className="divide-y divide-gray-100">
               {receiptQueue.map((item, index) => (
-                <li key={item.id} className={`flex justify-between items-center p-4 hover:bg-gray-50 transition-colors ${selectedReceipts.has(item.id) ? 'bg-blue-50/50' : ''}`}>
-                  <div className="flex items-center gap-4">
+                <li key={item.id} className={`flex flex-wrap justify-between items-center gap-3 p-4 hover:bg-gray-50 transition-colors ${selectedReceipts.has(item.id) ? 'bg-blue-50/50' : ''}`}>
+                  <div className="flex items-center gap-3 min-w-0">
                     <input
                       type="checkbox"
                       checked={selectedReceipts.has(item.id)}
                       onChange={() => toggleSelect(item.id)}
-                      className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                      className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer shrink-0"
                     />
-                    <div className="flex flex-col">
-                      <span className="font-bold text-gray-800">{index + 1}. {item.employeeName}</span>
-                      <span className="text-sm text-gray-500">{item.payingCompany} • {formatDateFull(item.date)} • {item.description}</span>
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-bold text-gray-800 truncate">{index + 1}. {item.employeeName}</span>
+                      <span className="text-sm text-gray-500 truncate">{item.payingCompany} • {formatDateFull(item.date)} • {item.description}</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <span className="font-bold text-green-700 bg-green-50 border border-green-200 px-3 py-1 rounded-md">
+                  <div className="flex items-center gap-3 shrink-0 ml-auto">
+                    <span className="font-bold text-green-700 bg-green-50 border border-green-200 px-3 py-1 rounded-md whitespace-nowrap tabular-nums">
                       {formatCurrency(item.value)}
                     </span>
                     <button

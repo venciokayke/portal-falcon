@@ -25,7 +25,15 @@ export default function PrintClient({ employees }: { employees: any[] }) {
     }
   };
 
-  const selectedEmployees = employees.filter(e => selectedIds.includes(e.id));
+  const selectedEmployees = [
+    ...(selectedIds.includes("__GENERIC_BLANK__") ? [{
+      id: "__GENERIC_BLANK__",
+      name: "__________________________________________________",
+      workSchedule: "_________________________",
+      contractType: "_________________________"
+    }] : []),
+    ...employees.filter(e => selectedIds.includes(e.id))
+  ];
 
   const handlePrint = (printMode: "blank" | "filled") => {
     setMode(printMode);
@@ -102,6 +110,19 @@ export default function PrintClient({ employees }: { employees: any[] }) {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto p-1">
+                {/* Opção de Folha em Branco (Sem Nome) */}
+                <label className="flex items-center gap-2 cursor-pointer bg-blue-50/50 hover:bg-blue-50 p-2 rounded-lg border border-dashed border-blue-200 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes("__GENERIC_BLANK__")}
+                    onChange={() => handleSelect("__GENERIC_BLANK__")}
+                    className="w-4.5 h-4.5 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-blue-700 font-semibold truncate">
+                    ✨ FOLHA EM BRANCO (SEM NOME)
+                  </span>
+                </label>
+
                 {employees.map(emp => (
                   <label key={emp.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded-lg border border-transparent hover:border-gray-200 transition-colors">
                     <input
@@ -116,22 +137,14 @@ export default function PrintClient({ employees }: { employees: any[] }) {
               </div>
             </div>
 
-            <div className="mt-8 flex flex-col sm:flex-row gap-4 pt-4 border-t border-gray-100">
+            <div className="mt-8 flex pt-4 border-t border-gray-100">
               <button
                 onClick={() => handlePrint("blank")}
-                disabled={selectedIds.length === 0}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg font-semibold transition-colors shadow-sm disabled:opacity-50"
-              >
-                <Printer className="w-5 h-5" />
-                Imprimir em Branco
-              </button>
-              <button
-                onClick={() => handlePrint("filled")}
                 disabled={selectedIds.length === 0}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-semibold transition-colors shadow-sm disabled:opacity-50"
               >
                 <Printer className="w-5 h-5" />
-                Imprimir Preenchidos
+                Imprimir Folha(s) de Ponto
               </button>
             </div>
           </div>
@@ -154,8 +167,20 @@ export default function PrintClient({ employees }: { employees: any[] }) {
               {/* Dados do Colaborador */}
               <div className="mb-6 grid grid-cols-2 gap-y-2 gap-x-4 text-sm border-2 border-gray-800 p-3 rounded">
                 <div className="col-span-2"><strong className="uppercase">Colaborador:</strong> {emp.name}</div>
-                <div><strong className="uppercase">Escala:</strong> {emp.workSchedule === 'FIXED_220' ? '220h Mensais' : emp.workSchedule === 'FIXED_180' ? '180h Mensais' : emp.workSchedule === 'SCALE_12X36' ? 'Escala 12x36' : 'Personalizada'}</div>
-                <div><strong className="uppercase">Contrato:</strong> {emp.contractType === 'PJ_FIXO' ? 'PJ Fixo' : emp.contractType === 'PJ_HORISTA' ? 'PJ Horista' : emp.contractType}</div>
+                <div>
+                  <strong className="uppercase">Escala:</strong> {
+                    emp.id === "__GENERIC_BLANK__"
+                      ? "_________________________"
+                      : (emp.workSchedule === 'FIXED_220' ? '220h Mensais' : emp.workSchedule === 'FIXED_180' ? '180h Mensais' : emp.workSchedule === 'SCALE_12X36' ? 'Escala 12x36' : 'Personalizada')
+                  }
+                </div>
+                <div>
+                  <strong className="uppercase">Contrato:</strong> {
+                    emp.id === "__GENERIC_BLANK__"
+                      ? "_________________________"
+                      : (emp.contractType === 'PJ_FIXO' ? 'PJ Fixo' : emp.contractType === 'PJ_HORISTA' ? 'PJ Horista' : emp.contractType)
+                  }
+                </div>
               </div>
 
               {/* Tabela de Dias */}
@@ -176,10 +201,10 @@ export default function PrintClient({ employees }: { employees: any[] }) {
                     <tr key={day} className="h-5">
                       <td className="border border-gray-800 font-bold">{String(day).padStart(2, '0')}</td>
                       <td className="border border-gray-800"></td>
-                      <td className="border border-gray-800 text-gray-400 font-mono tracking-tighter">{mode === "filled" ? "__:__" : ""}</td>
-                      <td className="border border-gray-800 text-gray-400 font-mono tracking-tighter">{mode === "filled" ? "__:__" : ""}</td>
-                      <td className="border border-gray-800 text-gray-400 font-mono tracking-tighter">{mode === "filled" ? "__:__" : ""}</td>
-                      <td className="border border-gray-800 text-gray-400 font-mono tracking-tighter">{mode === "filled" ? "__:__" : ""}</td>
+                      <td className="border border-gray-800"></td>
+                      <td className="border border-gray-800"></td>
+                      <td className="border border-gray-800"></td>
+                      <td className="border border-gray-800"></td>
                       <td className="border border-gray-800"></td>
                     </tr>
                   ))}
