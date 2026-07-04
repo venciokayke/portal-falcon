@@ -59,10 +59,13 @@ export default function EmployeeFormModal({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [workLocations, setWorkLocations] = useState<any[]>([]);
+  const [workLocationValue, setWorkLocationValue] = useState(employee?.workLocation || "");
 
   useEffect(() => {
     if (isOpen) {
       getWorkLocations().then(setWorkLocations).catch(console.error);
+      // Re-sync controlled value when modal opens (in case employee prop changed)
+      setWorkLocationValue(employee?.workLocation || "");
     }
   }, [isOpen]);
   const [workSchedule, setWorkSchedule] = useState(employee?.workSchedule || "FIXED_220");
@@ -336,7 +339,12 @@ Você tem certeza que deseja salvar sem benefícios?`}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Lotação</label>
-                  <select name="workLocation" defaultValue={employee?.workLocation || ""} className={inputClass()}>
+                  <select
+                    name="workLocation"
+                    value={workLocationValue}
+                    onChange={e => setWorkLocationValue(e.target.value)}
+                    className={inputClass()}
+                  >
                     <option value="">Selecione...</option>
                     {workLocations.map((loc) => (
                       <option key={loc.id} value={loc.name}>

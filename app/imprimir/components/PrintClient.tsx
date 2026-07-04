@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Printer } from "lucide-react";
 
+import { logActivity } from "@/actions/activity-log";
+
 export default function PrintClient({ employees }: { employees: any[] }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [mode, setMode] = useState<"blank" | "filled">("blank");
@@ -37,6 +39,7 @@ export default function PrintClient({ employees }: { employees: any[] }) {
 
   const handlePrint = (printMode: "blank" | "filled") => {
     setMode(printMode);
+    logActivity("IMPRESSAO_FOLHA_PONTO", `Folha em branco (${selectedEmployees.length} selecionados) - ${month + 1}/${year}`);
     setTimeout(() => {
       window.print();
     }, 100);
@@ -60,6 +63,18 @@ export default function PrintClient({ employees }: { employees: any[] }) {
             margin: .5cm;
             size: A4;
           }
+          /* Economia de tinta: remove fundos coloridos */
+          thead { background-color: transparent !important; }
+          th, td { background-color: transparent !important; }
+          /* Bordas mais finas e cinza claro */
+          table, th, td { border-color: #555 !important; border-width: 0.5pt !important; }
+          /* Remove arredondamentos */
+          * { border-radius: 0 !important; box-shadow: none !important; }
+          /* Compacta o header da folha */
+          h2 { font-size: 13pt !important; margin-bottom: 2mm !important; }
+          p  { font-size: 9pt  !important; margin: 0 !important; }
+          /* Linhas mais finas */
+          tr.h-5 { height: 4mm !important; }
         }
       `}} />
 
@@ -165,7 +180,7 @@ export default function PrintClient({ employees }: { employees: any[] }) {
               </div>
 
               {/* Dados do Colaborador */}
-              <div className="mb-6 grid grid-cols-2 gap-y-2 gap-x-4 text-sm border-2 border-gray-800 p-3 rounded">
+              <div className="mb-4 grid grid-cols-2 gap-y-1 gap-x-4 text-sm border border-gray-500 p-2">
                 <div className="col-span-2"><strong className="uppercase">Colaborador:</strong> {emp.name}</div>
                 <div>
                   <strong className="uppercase">Escala:</strong> {
@@ -184,28 +199,28 @@ export default function PrintClient({ employees }: { employees: any[] }) {
               </div>
 
               {/* Tabela de Dias */}
-              <table className="w-full text-[10px] sm:text-xs text-center border-collapse mb-4 border-2 border-gray-800">
-                <thead className="bg-gray-100">
+              <table className="w-full text-[10px] sm:text-xs text-center border-collapse mb-4 border border-gray-400">
+                <thead>
                   <tr>
-                    <th className="border border-gray-800 p-1 w-8">Dia</th>
-                    <th className="border border-gray-800 p-1 w-24">Local</th>
-                    <th className="border border-gray-800 p-1 w-14">Entrada 1</th>
-                    <th className="border border-gray-800 p-1 w-14">Saída 1</th>
-                    <th className="border border-gray-800 p-1 w-14">Entrada 2</th>
-                    <th className="border border-gray-800 p-1 w-14">Saída 2</th>
-                    <th className="border border-gray-800 p-1 w-40">Observação</th>
+                    <th className="border border-gray-400 p-1 w-8">Dia</th>
+                    <th className="border border-gray-400 p-1 w-24">Local</th>
+                    <th className="border border-gray-400 p-1 w-14">Entrada 1</th>
+                    <th className="border border-gray-400 p-1 w-14">Saída 1</th>
+                    <th className="border border-gray-400 p-1 w-14">Entrada 2</th>
+                    <th className="border border-gray-400 p-1 w-14">Saída 2</th>
+                    <th className="border border-gray-400 p-1 w-40">Observação</th>
                   </tr>
                 </thead>
                 <tbody>
                   {daysArray.map(day => (
-                    <tr key={day} className="h-5">
-                      <td className="border border-gray-800 font-bold">{String(day).padStart(2, '0')}</td>
-                      <td className="border border-gray-800"></td>
-                      <td className="border border-gray-800"></td>
-                      <td className="border border-gray-800"></td>
-                      <td className="border border-gray-800"></td>
-                      <td className="border border-gray-800"></td>
-                      <td className="border border-gray-800"></td>
+                    <tr key={day} className="h-[4.5mm]">
+                      <td className="border border-gray-300 font-semibold text-[9px]">{String(day).padStart(2, '0')}</td>
+                      <td className="border border-gray-300"></td>
+                      <td className="border border-gray-300"></td>
+                      <td className="border border-gray-300"></td>
+                      <td className="border border-gray-300"></td>
+                      <td className="border border-gray-300"></td>
+                      <td className="border border-gray-300"></td>
                     </tr>
                   ))}
                 </tbody>

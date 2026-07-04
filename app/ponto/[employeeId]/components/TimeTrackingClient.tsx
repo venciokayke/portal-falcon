@@ -6,6 +6,7 @@ import { Calendar, MapPin, Plus, Trash2, Clock, Printer, CheckCircle, Loader2, M
 import { useRouter } from "next/navigation";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { AlertModal } from "@/components/ui/AlertModal";
+import Link from "next/link";
 
 function getDaysInMonth(month: number, year: number) {
   return new Date(year, month + 1, 0).getDate();
@@ -110,7 +111,7 @@ export default function TimeTrackingClient({
     return (outMinutes - inMinutes) / 60;
   };
 
-  const totalWorkedHours = Math.round(savedShiftsList.reduce((acc, shift) => acc + calculateShiftHours(shift.checkIn, shift.checkOut), 0));
+  const totalWorkedHours = savedShiftsList.reduce((acc, shift) => acc + Math.round(calculateShiftHours(shift.checkIn, shift.checkOut)), 0);
 
   const daysCount = getDaysInMonth(selectedMonth, selectedYear);
   const daysArray = Array.from({ length: daysCount }, (_, i) => {
@@ -422,8 +423,15 @@ export default function TimeTrackingClient({
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+          <div className="flex items-center gap-3 flex-wrap justify-end">
+            <Link
+              href={`/folha?month=${selectedMonth + 1}&year=${selectedYear}`}
+              className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm print:hidden"
+              title="Voltar para Fechamento"
+            >
+              Fechamento
+            </Link>
+            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer print:hidden">
               <input type="checkbox" checked={anonymousPrint} onChange={e => setAnonymousPrint(e.target.checked)} className="w-4 h-4 text-blue-600 rounded" />
               Ocultar Nome
             </label>

@@ -92,7 +92,7 @@ export function calculatePayroll(
   }
 
   // 2. Horas Trabalhadas e Intervalo
-  let totalWorkedMinutes = 0;
+  let totalWorkedHours = 0;
   let intervalHoursAdded = 0;
   
   // Usamos um Set para contar os "Dias Trabalhados" únicos e evitar problemas 
@@ -103,7 +103,7 @@ export function calculatePayroll(
     if (shift.checkIn && shift.checkOut) {
       const minutes = differenceInMinutes(shift.checkOut, shift.checkIn);
       if (minutes > 0) {
-        totalWorkedMinutes += minutes;
+        totalWorkedHours += Math.round(minutes / 60);
       }
     }
     
@@ -111,8 +111,6 @@ export function calculatePayroll(
     const dateString = new Date(shift.referenceDate).toISOString().split('T')[0];
     workedDaysSet.add(dateString);
   }
-
-  let totalWorkedHours = totalWorkedMinutes / 60;
 
   // Se receivesIntervalHour for true, adicione +1h para cada Shift trabalhado
   if (employee.receivesIntervalHour) {
@@ -144,7 +142,7 @@ export function calculatePayroll(
 
   return {
     baseHours,
-    totalWorkedHours: Math.round(totalWorkedHours),
+    totalWorkedHours,
     intervalHoursAdded,
     extraHoursBalance: Number(extraHoursBalance.toFixed(2)),
     extraValue: Number(extraValue.toFixed(2)),

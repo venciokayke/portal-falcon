@@ -3,7 +3,7 @@
 import { Printer, Calendar } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-
+import { logActivity } from "@/actions/activity-log";
 interface EmployeeData {
   id: string;
   name: string;
@@ -26,7 +26,10 @@ export default function AccountingReportClient({ data, initialMonth, initialYear
     router.push(`/relatorio-contabilidade?month=${newMonth + 1}&year=${newYear}`);
   };
   const handlePrint = () => {
-    window.print();
+    logActivity("IMPRESSAO_RELATORIO_CONTABILIDADE", `Mês/Ano: ${month + 1}/${year}`);
+    setTimeout(() => {
+      window.print();
+    }, 100);
   };
 
   return (
@@ -36,11 +39,29 @@ export default function AccountingReportClient({ data, initialMonth, initialYear
         @media print {
           @page {
             size: landscape;
-            margin: 10mm;
+            margin: 5mm;
           }
           body {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
+          }
+          input[type="date"]::-webkit-calendar-picker-indicator {
+            display: none !important;
+            -webkit-appearance: none !important;
+          }
+          /* Ajustes de layout para caber na folha */
+          table, th, td {
+            font-size: 10px !important;
+          }
+          th, td {
+            padding: 4px !important;
+          }
+          input[type="date"] {
+            width: 70px !important;
+            font-size: 10px !important;
+          }
+          th.w-\\[200px\\] {
+            width: 155px !important;
           }
         }
       `}} />
@@ -89,8 +110,8 @@ export default function AccountingReportClient({ data, initialMonth, initialYear
               <th className="px-4 py-3 border-r border-gray-300">LOTAÇÃO</th>
               <th className="px-4 py-3 border-r border-gray-300">HORÁRIO DE TRABALHO</th>
               <th className="px-3 py-3 border-r border-gray-300 w-32">HORA INTERVALAR</th>
-              <th className="px-3 py-3 border-r border-gray-300 w-24">FALTAS</th>
-              <th className="px-4 py-3 w-40">DESCONTOS</th>
+              <th className="px-3 py-3 border-r border-gray-300 w-[200px] text-center">FALTAS</th>
+              <th className="px-3 py-3 w-[200px] text-center">DESCONTOS</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 border-b border-gray-300">
@@ -132,17 +153,31 @@ export default function AccountingReportClient({ data, initialMonth, initialYear
                     />
                   )}
                 </td>
-                <td className="px-2 py-1 border-r border-gray-200">
-                  <input
-                    type="text"
-                    className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:border-none print:p-0 print:focus:ring-0"
-                  />
+                <td className="px-2 py-1 border-r border-gray-200 align-middle">
+                  <div className="flex items-center justify-center gap-1 w-full">
+                    <input
+                      type="date"
+                      className="w-[95px] text-xs bg-transparent border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0 text-center"
+                    />
+                    <span className="text-gray-500 font-medium text-xs print:text-black">a</span>
+                    <input
+                      type="date"
+                      className="w-[95px] text-xs bg-transparent border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0 text-center"
+                    />
+                  </div>
                 </td>
-                <td className="px-2 py-1">
-                  <input
-                    type="text"
-                    className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:border-none print:p-0 print:focus:ring-0"
-                  />
+                <td className="px-2 py-1 align-middle">
+                  <div className="flex items-center justify-center gap-1 w-full">
+                    <input
+                      type="date"
+                      className="w-[95px] text-xs bg-transparent border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0 text-center"
+                    />
+                    <span className="text-gray-500 font-medium text-xs print:text-black">a</span>
+                    <input
+                      type="date"
+                      className="w-[95px] text-xs bg-transparent border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0 text-center"
+                    />
+                  </div>
                 </td>
               </tr>
             ))}

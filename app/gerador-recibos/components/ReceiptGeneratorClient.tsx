@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Printer, Plus, Trash2, ReceiptText, CheckSquare, XSquare, Pencil } from "lucide-react";
 import { AlertModal } from "@/components/ui/AlertModal";
-
+import { logActivity } from "@/actions/activity-log";
 const generateUUID = () => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -196,6 +196,13 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
     }
   };
 
+  const handlePrint = () => {
+    logActivity("IMPRESSAO_RECIBOS", `Impressão de ${receiptQueue.length} recibo(s)`);
+    setTimeout(() => {
+      window.print();
+    }, 100);
+  };
+
   const formatCurrency = (val: number) => {
     return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
@@ -329,7 +336,7 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
           @page { size: A4 portrait; margin: 0; }
           body { background: white !important; }
           .no-print { display: none !important; }
-          /* Remove margens e paddings dos containers superiores durante a impressao para evitar pagina extra */
+          /* Remove margens e paddings dos containers superiores para evitar pagina extra */
           html, body, main, div.space-y-6, div.px-6, div.pb-10, div.min-h-screen {
             margin: 0 !important;
             padding: 0 !important;
@@ -337,6 +344,8 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
             height: auto !important;
             box-shadow: none !important;
           }
+          /* Remove sombras e fundos coloridos da UI que possam vazar na impressão */
+          * { box-shadow: none !important; }
         }
       `}} />
 
@@ -527,7 +536,7 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
             </div>
 
             <button
-              onClick={() => window.print()}
+              onClick={handlePrint}
               className="flex items-center gap-2 bg-gray-800 hover:bg-gray-900 text-white px-6 py-2.5 rounded-lg font-bold transition-colors shadow-md"
             >
               <Printer className="h-5 w-5" />
@@ -581,7 +590,7 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
         {chunks.map((chunk, pageIndex) => (
           <div key={pageIndex} className={`print:h-[296mm] print:w-[210mm] flex flex-col box-border p-2 ${pageIndex < chunks.length - 1 ? 'print:break-after-page' : ''}`}>
             {chunk.map((item, index) => (
-              <div key={item.id} className="flex-1 border border-slate-800 rounded-lg m-2 p-5 flex flex-col justify-between relative">
+              <div key={item.id} className="flex-1 border border-gray-400 m-2 p-4 flex flex-col justify-between relative">
 
                 {/* Linha de Corte entre os recibos */}
                 {index < chunk.length - 1 && (
@@ -593,15 +602,15 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
                 )}
 
                 <div>
-                  <div className="flex justify-between items-center border-b border-slate-300 pb-2 mb-2">
-                    <h2 className="text-lg font-bold uppercase tracking-widest text-slate-800">Recibo</h2>
-                    <div className="border border-slate-800 bg-slate-100 px-3 py-1 text-base font-bold rounded-md shadow-sm">
+                  <div className="flex justify-between items-center border-b border-gray-400 pb-2 mb-2">
+                    <h2 className="text-lg font-bold uppercase tracking-widest text-black">Recibo</h2>
+                    <div className="border border-gray-500 px-3 py-1 text-base font-bold">
                       {formatCurrency(item.value)}
                     </div>
                   </div>
 
-                  <p className="text-sm leading-relaxed text-justify text-slate-800 mt-3">
-                    Recebi(emos) de <span className="font-bold">{item.payingCompany}</span>, a importância supra de <span className="font-bold px-1 bg-yellow-200">{formatCurrency(item.value)}</span> referente a <span className="font-bold">{item.description}</span>.
+                  <p className="text-sm leading-relaxed text-justify text-black mt-3">
+                    Recebi(emos) de <span className="font-bold">{item.payingCompany}</span>, a importância supra de <span className="font-bold underline">{formatCurrency(item.value)}</span> referente a <span className="font-bold">{item.description}</span>.
                   </p>
                 </div>
 
@@ -611,8 +620,8 @@ export default function ReceiptGeneratorClient({ employees }: { employees: Emplo
                   </p>
 
                   <div className="w-2/3 mx-auto mt-2 flex flex-col items-center">
-                    <div className="w-full border-t border-slate-800"></div>
-                    <span className="font-bold text-sm uppercase mt-1 text-slate-900">{item.employeeName}</span>
+                    <div className="w-full border-t border-gray-500"></div>
+                    <span className="font-bold text-sm uppercase mt-1 text-black">{item.employeeName}</span>
                   </div>
                 </div>
               </div>

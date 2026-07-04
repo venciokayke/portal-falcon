@@ -128,7 +128,6 @@ export async function addEmployee(formData: FormData) {
   });
 
   await logActivity("CRIAR_COLABORADOR", `Nome: ${data.name} | Contrato: ${data.contractType}`);
-  await logActivity("CRIAR_COLABORADOR", `Nome: ${data.name} | Contrato: ${data.contractType}`);
   revalidatePath("/colaboradores");
 }
 

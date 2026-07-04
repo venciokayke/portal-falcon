@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { revalidatePath } from "next/cache";
+import { logActivity } from "@/actions/activity-log";
 
 export async function getPayrollStatus(month: number, year: number) {
   const record = await prisma.payrollStatus.findUnique({
@@ -58,6 +59,7 @@ export async function submitPayroll(month: number, year: number) {
     }
   });
 
+  await logActivity("ENVIAR_FOLHA_APROVACAO", `Folha enviada para aprovação. Mês/Ano: ${month}/${year}`);
   revalidatePath("/folha");
   revalidatePath("/horas-extras");
 }
@@ -92,6 +94,7 @@ export async function approvePayroll(month: number, year: number) {
     }
   });
 
+  await logActivity("APROVAR_FOLHA", `Folha aprovada. Mês/Ano: ${month}/${year}`);
   revalidatePath("/folha");
   revalidatePath("/horas-extras");
 }
@@ -121,6 +124,7 @@ export async function rejectPayroll(month: number, year: number) {
     }
   });
 
+  await logActivity("RECUSAR_FOLHA", `Folha devolvida para correção. Mês/Ano: ${month}/${year}`);
   revalidatePath("/folha");
   revalidatePath("/horas-extras");
 }

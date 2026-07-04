@@ -10,7 +10,7 @@ import {
 import {
   Calendar, Save, Loader2, Printer, Sparkles,
   CheckCircle2, Check, ShieldCheck, TrendingUp, TrendingDown,
-  RefreshCw, Send, ClipboardCheck, Ban,
+  RefreshCw, Send, ClipboardCheck, Ban, MessageSquare, UserPlus, X,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { AlertModal } from "@/components/ui/AlertModal";
@@ -20,6 +20,8 @@ import {
   approvePayroll,
   rejectPayroll,
 } from "@/actions/payroll-status";
+import { logActivity } from "@/actions/activity-log";
+import Link from "next/link";
 
 const MONTHS = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -61,6 +63,16 @@ type PayrollRow = {
 const inputBase =
   "w-full bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-200 rounded px-2 py-1 transition-all outline-none text-right print:border-none print:bg-transparent print:p-0 print:ring-0 print:appearance-none";
 
+type GuestRow = {
+  id: string;
+  name: string;
+  baseValue: number;
+  extras: number;
+  vtValue: number;
+  discounts: number;
+  observations: string;
+};
+
 export default function PayrollClient() {
   const currentDate = new Date();
   const [month, setMonth] = useState(currentDate.getMonth());
@@ -75,6 +87,13 @@ export default function PayrollClient() {
   const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false, title: "", message: ""
   });
+
+  // Estado das linhas avulsas (locais, sem persistência no banco)
+  const [guestRows, setGuestRows] = useState<GuestRow[]>([]);
+  const [guestModalOpen, setGuestModalOpen] = useState(false);
+  const [guestForm, setGuestForm] = useState({ name: "", baseValue: "", extras: "", vtValue: "", discounts: "", observations: "" });
+
+  const [observationModal, setObservationModal] = useState<{isOpen: boolean; rowId: string; isGuest: boolean; text: string}>({isOpen: false, rowId: "", isGuest: false, text: ""});
 
   const [sheetStatus, setSheetStatus] = useState<{
     status: string;
@@ -205,15 +224,48 @@ export default function PayrollClient() {
     }
   };
 
+  const handlePrint = () => {
+    logActivity("IMPRESSAO_FECHAMENTO_FOLHA", `Mês/Ano: ${month + 1}/${year}`);
+    setTimeout(() => {
+      window.print();
+    }, 100);
+  };
+
   const grupos = [
     { key: "FALCON_SERVICE", rows: rows.filter(r => r.registrationCompany === "FALCON_SERVICE") },
     { key: "FALCON_MONITORAMENTO", rows: rows.filter(r => r.registrationCompany === "FALCON_MONITORAMENTO") },
     { key: "NAO_REGISTRADO", rows: rows.filter(r => r.registrationCompany === "NAO_REGISTRADO") },
   ].filter(g => g.rows.length > 0);
 
-  const totalAPagar = rows.reduce((a, r) => a + (Number(r.baseValue) + Number(r.extras) + Number(r.vtValue) - Number(r.discounts)), 0);
+  const totalAPagar = [
+    ...rows,
+    ...guestRows.map(g => ({ baseValue: g.baseValue, extras: g.extras, vtValue: g.vtValue, discounts: g.discounts, isPaid: false })),
+  ].reduce((a, r) => a + (Number(r.baseValue) + Number(r.extras) + Number(r.vtValue) - Number(r.discounts)), 0);
   const totalPago = rows.filter(r => r.isPaid).reduce((a, r) => a + (Number(r.baseValue) + Number(r.extras) + Number(r.vtValue) - Number(r.discounts)), 0);
   const paidCount = rows.filter(r => r.isPaid).length;
+
+  const handleAddGuest = () => {
+    if (!guestForm.name.trim()) return;
+    const newGuest: GuestRow = {
+      id: `guest-${Date.now()}`,
+      name: guestForm.name.trim().toUpperCase(),
+      baseValue: Number(guestForm.baseValue) || 0,
+      extras: Number(guestForm.extras) || 0,
+      vtValue: Number(guestForm.vtValue) || 0,
+      discounts: Number(guestForm.discounts) || 0,
+      observations: guestForm.observations,
+    };
+    setGuestRows(prev => [...prev, newGuest]);
+    setGuestForm({ name: "", baseValue: "", extras: "", vtValue: "", discounts: "", observations: "" });
+    setGuestModalOpen(false);
+  };
+
+  const handleGuestChange = (id: string, field: keyof GuestRow, value: string) => {
+    setGuestRows(prev => prev.map(g => {
+      if (g.id !== id) return g;
+      return { ...g, [field]: value };
+    }));
+  };
 
   const renderGroup = (groupKey: string, groupRows: PayrollRow[]) => {
     const totalGroup = groupRows.reduce((a, r) => a + (Number(r.baseValue) + Number(r.extras) + Number(r.vtValue) - Number(r.discounts)), 0);
@@ -266,7 +318,36 @@ export default function PayrollClient() {
         </div>
 
         {/* ── Tabela ── */}
-        <div className="overflow-x-auto rounded-xl border border-gray-100 shadow-sm print:shadow-none print:border print:border-black print:rounded-none">
+        <div className="flex flex-col bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print:border-none print:shadow-none print:bg-transparent">
+          {/* Observation Modal */}
+          {observationModal.isOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in print:hidden">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 animate-in zoom-in-95">
+                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-blue-600" />
+                  Observações
+                </h3>
+                <textarea
+                  autoFocus
+                  className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500 min-h-[120px] resize-none text-black"
+                  placeholder="Digite aqui as observações..."
+                  value={observationModal.text}
+                  onChange={e => setObservationModal(p => ({...p, text: e.target.value}))}
+                />
+                <div className="flex justify-end gap-3 mt-6">
+                  <button onClick={() => setObservationModal({isOpen: false, rowId: "", isGuest: false, text: ""})} className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">Cancelar</button>
+                  <button onClick={() => {
+                    if (observationModal.isGuest) {
+                      handleGuestChange(observationModal.rowId, "observations", observationModal.text);
+                    } else {
+                      handleChange(observationModal.rowId, "observations", observationModal.text);
+                    }
+                    setObservationModal({isOpen: false, rowId: "", isGuest: false, text: ""});
+                  }} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">Salvar</button>
+                </div>
+              </div>
+            </div>
+          )}
           <table className="w-full text-left border-collapse print:text-[10px]">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200 print:border-black print:bg-gray-100">
@@ -295,7 +376,7 @@ export default function PayrollClient() {
                   >
                     {/* Nome */}
                     <td className="px-4 py-3">
-                      <span className={`font-medium text-gray-900 text-sm ${anonymousPrint ? "print:hidden" : ""}`}>{row.name}</span>
+                      <Link href={`/ponto/${row.employeeId}?month=${month + 1}&year=${year}`} className={`font-medium text-gray-900 hover:text-blue-600 hover:underline text-sm ${anonymousPrint ? "print:hidden" : ""}`}>{row.name}</Link>
                       {anonymousPrint && <span className="hidden print:inline font-medium text-gray-500 text-sm">Colaborador {row.id.substring(0,5).toUpperCase()}</span>}
                       {row.isPaid && (
                         <CheckCircle2 className="inline h-3.5 w-3.5 text-green-500 ml-1.5 print:hidden" />
@@ -385,24 +466,20 @@ export default function PayrollClient() {
                     </td>
 
                     {/* Observações */}
-                    <td className="px-2 py-2">
-                      <div className="relative group/obs w-full">
-                        <input
-                          type="text"
-                          value={row.observations}
-                          onChange={e => handleChange(row.id, "observations", e.target.value)}
+                    <td className="px-2 py-2 print:px-1 print:py-1">
+                      <div className="print:hidden flex justify-center">
+                        <button
+                          onClick={() => setObservationModal({isOpen: true, rowId: row.id, isGuest: false, text: row.observations || ""})}
                           disabled={row.isPaid || !canEdit}
-                          placeholder="Adicionar nota..."
-                          title={row.observations || undefined}
-                          className="w-full bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-200 rounded px-2 py-1 transition-all outline-none text-left text-sm text-gray-600 placeholder-gray-300 disabled:cursor-not-allowed print:border-none print:bg-transparent print:p-0 print:ring-0 print:placeholder-transparent"
-                        />
-                        {row.observations && row.observations.trim().length > 0 && (
-                          <div className="absolute left-0 bottom-full mb-2 hidden group-hover/obs:block group-focus-within/obs:block z-30 w-72 bg-gray-900/95 backdrop-blur-sm text-white text-xs rounded-lg p-3 shadow-xl border border-gray-800 pointer-events-none break-words leading-relaxed">
-                            <div className="font-semibold text-gray-400 mb-1">Observação completa:</div>
-                            <div className="text-gray-100">{row.observations}</div>
-                            <div className="absolute top-full left-4 w-2 h-2 bg-gray-900/95 border-r border-b border-gray-800 rotate-45 -translate-y-1"></div>
-                          </div>
-                        )}
+                          className={`p-2 rounded-md transition-colors relative flex items-center justify-center ${row.observations ? 'text-blue-600 bg-blue-100 hover:bg-blue-200' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                          title={row.observations || "Adicionar Observação"}
+                        >
+                          <MessageSquare className="h-4 w-4" />
+                          {row.observations && <span className="absolute top-0 right-0 w-2 h-2 bg-blue-500 rounded-full border border-white"></span>}
+                        </button>
+                      </div>
+                      <div className="hidden print:block text-[9px] text-black leading-tight break-words">
+                        {row.observations}
                       </div>
                     </td>
 
@@ -476,15 +553,85 @@ export default function PayrollClient() {
         message={errorModal.message}
         type="error"
       />
+
+      {/* ── Modal Avulso ── */}
+      {guestModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 print:hidden animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={() => setGuestModalOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center border-b border-gray-100 pb-3 mb-5">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <UserPlus className="h-5 w-5 text-amber-500" />
+                Adicionar Colaborador Avulso
+              </h3>
+              <button type="button" onClick={() => setGuestModalOpen(false)} className="text-gray-400 hover:text-gray-600 font-bold text-2xl leading-none">&times;</button>
+            </div>
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+              Linha temporária — não é salva no banco. Use para pagamentos pontuais sem cadastro.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
+                <input
+                  type="text"
+                  value={guestForm.name}
+                  onChange={e => setGuestForm(p => ({ ...p, name: e.target.value.toUpperCase() }))}
+                  placeholder="Ex: MARIA OLIVEIRA"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none text-sm"
+                  autoFocus
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Base / Salário</label>
+                  <input type="number" step="0.01" min="0" value={guestForm.baseValue} onChange={e => setGuestForm(p => ({ ...p, baseValue: e.target.value }))} placeholder="0.00" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none text-sm text-right" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Extras</label>
+                  <input type="number" step="0.01" min="0" value={guestForm.extras} onChange={e => setGuestForm(p => ({ ...p, extras: e.target.value }))} placeholder="0.00" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none text-sm text-right" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Vale Transporte</label>
+                  <input type="number" step="0.01" min="0" value={guestForm.vtValue} onChange={e => setGuestForm(p => ({ ...p, vtValue: e.target.value }))} placeholder="0.00" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none text-sm text-right" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Descontos</label>
+                  <input type="number" step="0.01" min="0" value={guestForm.discounts} onChange={e => setGuestForm(p => ({ ...p, discounts: e.target.value }))} placeholder="0.00" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none text-sm text-right" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Observação</label>
+                <input type="text" value={guestForm.observations} onChange={e => setGuestForm(p => ({ ...p, observations: e.target.value }))} placeholder="Ex: Serviço prestado em 01/07" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none text-sm" />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button type="button" onClick={() => setGuestModalOpen(false)} className="flex-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2.5 rounded-xl transition-colors">Cancelar</button>
+              <button type="button" onClick={handleAddGuest} disabled={!guestForm.name.trim()} className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2.5 rounded-xl transition-colors disabled:opacity-50">Adicionar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style dangerouslySetInnerHTML={{
         __html: `
         @media print {
           @page { size: A4 landscape; margin: 8mm; }
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: white !important; }
           body, html, #__next, main, .min-h-screen { min-height: 0 !important; height: auto !important; }
           input { border: none !important; background: transparent !important; padding: 2px 0 !important; box-shadow: none !important; appearance: none; -webkit-appearance: none; }
           input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
           input::placeholder { color: transparent !important; }
+          /* Economia de tinta: remove fundos e sombras */
+          thead, tbody tr { background-color: white !important; }
+          th { background-color: #f3f4f6 !important; }
+          * { box-shadow: none !important; }
+          /* Bordas finas */
+          table, th, td { border-color: #888 !important; }
+          /* Remove badges/pills coloridos */
+          span[class*="bg-green"], span[class*="bg-blue"], span[class*="bg-amber"],
+          span[class*="bg-red"], span[class*="bg-gray"] { background: transparent !important; color: black !important; border: none !important; padding: 0 !important; }
+          /* Compacta padding */
+          td, th { padding-top: 2px !important; padding-bottom: 2px !important; }
         }
       `}} />
 
@@ -612,6 +759,16 @@ export default function PayrollClient() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap shrink-0">
+          {/* Botão Avanço */}
+          <button
+            onClick={() => setGuestModalOpen(true)}
+            disabled={isLoading}
+            title="Adicionar colaborador avulso (sem cadastro) à folha"
+            className="flex items-center gap-2 border border-dashed border-amber-400 bg-amber-50 hover:bg-amber-100 text-amber-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 shrink-0 whitespace-nowrap"
+          >
+            <UserPlus className="h-4 w-4 shrink-0" />
+            Avulso
+          </button>
           {savedAt && (
             <span className="text-xs text-green-600 flex items-center gap-1 whitespace-nowrap shrink-0">
               <Check className="h-3.5 w-3.5 shrink-0" /> Salvo às {savedAt}
@@ -622,7 +779,7 @@ export default function PayrollClient() {
             Ocultar Nomes
           </label>
           <button
-            onClick={() => window.print()}
+            onClick={handlePrint}
             className="flex items-center gap-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors shrink-0 whitespace-nowrap"
           >
             <Printer className="h-4 w-4 shrink-0" /> Imprimir
@@ -686,6 +843,66 @@ export default function PayrollClient() {
               <h1 className="text-xl font-bold uppercase tracking-wide">Fechamento de Folha — {MONTHS[month]} / {year}</h1>
             </div>
             {grupos.map(g => renderGroup(g.key, g.rows))}
+
+            {/* ── Linhas Avulsas ── */}
+            {guestRows.length > 0 && (
+              <div className="print:break-inside-avoid">
+                <div className="flex flex-wrap justify-between items-center mt-8 mb-3 pb-3 border-b border-amber-200 print:mt-4 print:mb-2">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-xl font-semibold text-amber-700 print:text-base">Avulsos</h2>
+                    <span className="text-xs bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full font-medium">
+                      {guestRows.length} linha{guestRows.length !== 1 ? "s" : ""}
+                    </span>
+                    <span className="text-[10px] italic text-gray-400 print:hidden">Não salvo no banco</span>
+                  </div>
+                  <span className="bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1 rounded-full text-sm font-semibold whitespace-nowrap tabular-nums">
+                    Total: R$ {guestRows.reduce((a, g) => a + g.baseValue + g.extras + g.vtValue - g.discounts, 0).toFixed(2)}
+                  </span>
+                </div>
+                <div className="overflow-x-auto rounded-xl border border-amber-100 shadow-sm print:shadow-none print:border print:border-black print:rounded-none">
+                  <table className="w-full text-left border-collapse print:text-[10px]">
+                    <thead>
+                      <tr className="bg-amber-50 border-b border-amber-200 print:border-black print:bg-gray-100">
+                        <th className="px-4 py-3 text-xs font-semibold text-amber-600 uppercase tracking-wider min-w-[160px]">Funcionário</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-amber-600 uppercase tracking-wider min-w-[110px] text-right">Valor a Pagar</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-amber-600 uppercase tracking-wider min-w-[100px] text-right">Base</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-amber-600 uppercase tracking-wider min-w-[100px] text-right">Extras</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-amber-600 uppercase tracking-wider min-w-[100px] text-right">VT</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-amber-600 uppercase tracking-wider min-w-[100px] text-right">Descontos</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-amber-600 uppercase tracking-wider min-w-[140px]">Observações</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-amber-600 uppercase tracking-wider w-12 text-center print:hidden"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {guestRows.map(g => {
+                        const total = g.baseValue + g.extras + g.vtValue - g.discounts;
+                        return (
+                          <tr key={g.id} className="border-b border-amber-50 bg-white hover:bg-amber-50/40 print:border-black">
+                            <td className="px-4 py-3">
+                              <span className="font-medium text-gray-900 text-sm">{g.name}</span>
+                              <span className="ml-2 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-semibold uppercase print:hidden">Avulso</span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <span className="font-bold text-gray-900 whitespace-nowrap tabular-nums">R$ {total.toFixed(2)}</span>
+                            </td>
+                            <td className="px-2 py-2 text-right tabular-nums text-sm text-gray-700">{g.baseValue > 0 ? g.baseValue.toFixed(2) : "—"}</td>
+                            <td className="px-2 py-2 text-right tabular-nums text-sm text-blue-700">{g.extras > 0 ? g.extras.toFixed(2) : "—"}</td>
+                            <td className="px-2 py-2 text-right tabular-nums text-sm text-gray-700">{g.vtValue > 0 ? g.vtValue.toFixed(2) : "—"}</td>
+                            <td className="px-2 py-2 text-right tabular-nums text-sm text-red-600">{g.discounts > 0 ? g.discounts.toFixed(2) : "—"}</td>
+                            <td className="px-2 py-2 text-sm text-gray-500">{g.observations || "—"}</td>
+                            <td className="px-2 py-2 text-center print:hidden">
+                              <button onClick={() => setGuestRows(prev => prev.filter(r => r.id !== g.id))} className="text-red-400 hover:text-red-600 p-1 rounded transition-colors" title="Remover">
+                                <X className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

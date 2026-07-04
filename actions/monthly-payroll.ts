@@ -6,6 +6,7 @@ import { getGlobalRates } from "@/actions/config";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { logActivity } from "@/actions/activity-log";
 
 // Busca os registros do MonthlyPayroll para o mês/ano. Retorna [] se não gerados ainda.
 export async function getMonthlyPayrolls(month: number, year: number) {
@@ -13,10 +14,6 @@ export async function getMonthlyPayrolls(month: number, year: number) {
     where: { 
       month, 
       year,
-      OR: [
-        { isPaid: true },
-        { employee: { isActive: true } }
-      ]
     },
     include: {
       employee: {
@@ -135,6 +132,7 @@ export async function generateMonthPreview(month: number, year: number) {
     });
   }
 
+  await logActivity("GERAR_PREVIA_FOLHA", `Prévia gerada para ${month}/${year}`);
   revalidatePath("/folha");
 }
 
@@ -178,6 +176,7 @@ export async function saveAllMonthlyPayrolls(
     });
   }
 
+  await logActivity("SALVAR_FECHAMENTO_FOLHA", `Linhas alteradas: ${rows.length}`);
   revalidatePath("/folha");
 }
 
@@ -200,5 +199,6 @@ export async function togglePaymentStatus(id: string, isPaid: boolean) {
     },
   });
 
+  await logActivity("TOGGLE_PAGAMENTO_FOLHA", `Pagamento ${isPaid ? "realizado" : "cancelado"} | Linha ID: ${id}`);
   revalidatePath("/folha");
 }

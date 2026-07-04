@@ -5,6 +5,7 @@ import { getGlobalRates } from "@/actions/config";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { logActivity } from "@/actions/activity-log";
 
 export async function getOvertimeData(month: number, year: number) {
   const records = await prisma.overtimeEntry.findMany({
@@ -14,10 +15,6 @@ export async function getOvertimeData(month: number, year: number) {
       employee: {
         contractType: { not: "PJ_FIXO" }
       },
-      OR: [
-        { status: "PAGO" },
-        { employee: { isActive: true } }
-      ]
     },
     include: {
       employee: {
@@ -110,6 +107,7 @@ export async function saveOvertimeRecords(rows: { id: string, hours: number, tot
       }
     });
   }
+  await logActivity("SALVAR_HORAS_EXTRAS", `Linhas alteradas: ${rows.length}`);
   revalidatePath("/horas-extras");
 }
 
@@ -131,5 +129,7 @@ export async function toggleOvertimeStatus(id: string, newStatus: string) {
       approvedAt: isPaid ? new Date() : null,
     }
   });
+  
+  await logActivity("TOGGLE_PAGAMENTO_EXTRA", `Status alterado para ${newStatus} | Linha ID: ${id}`);
   revalidatePath("/horas-extras");
 }

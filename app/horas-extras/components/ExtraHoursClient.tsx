@@ -10,7 +10,7 @@ import {
 import {
   Calendar, Save, Loader2, Printer, Sparkles,
   Check, RefreshCw, CheckCircle2, ShieldCheck,
-  Send, ClipboardCheck, Ban
+  Send, ClipboardCheck, Ban, MessageSquare
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { AlertModal } from "@/components/ui/AlertModal";
@@ -20,6 +20,8 @@ import {
   approvePayroll,
   rejectPayroll,
 } from "@/actions/payroll-status";
+import { logActivity } from "@/actions/activity-log";
+import Link from "next/link";
 
 const MONTHS = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -78,6 +80,7 @@ export default function ExtraHoursClient() {
   const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false, title: "", message: ""
   });
+  const [observationModal, setObservationModal] = useState<{isOpen: boolean; rowId: string; text: string}>({isOpen: false, rowId: "", text: ""});
 
   const { data: session } = useSession();
   const isAdminOrManager = (session?.user as any)?.role === "ADMIN" || (session?.user as any)?.role === "MANAGER";
@@ -199,6 +202,13 @@ export default function ExtraHoursClient() {
     }
   };
 
+  const handlePrint = () => {
+    logActivity("IMPRESSAO_HORAS_EXTRAS", `Mês/Ano: ${month + 1}/${year}`);
+    setTimeout(() => {
+      window.print();
+    }, 100);
+  };
+
   const grupos = [
     { key: "FALCON_SERVICE", rows: rows.filter(r => r.registrationCompany === "FALCON_SERVICE") },
     { key: "FALCON_MONITORAMENTO", rows: rows.filter(r => r.registrationCompany === "FALCON_MONITORAMENTO") },
@@ -237,7 +247,32 @@ export default function ExtraHoursClient() {
         </div>
 
         {/* Tabela */}
-        <div className="overflow-x-auto rounded-xl border border-gray-100 shadow-sm print:shadow-none print:border print:border-black print:rounded-none">
+        <div className="flex flex-col bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print:border-none print:shadow-none print:bg-transparent">
+        {/* Observation Modal */}
+        {observationModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in print:hidden">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 animate-in zoom-in-95">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-blue-600" />
+                Observações
+              </h3>
+              <textarea
+                autoFocus
+                className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500 min-h-[120px] resize-none text-black"
+                placeholder="Digite aqui as observações..."
+                value={observationModal.text}
+                onChange={e => setObservationModal(p => ({...p, text: e.target.value}))}
+              />
+              <div className="flex justify-end gap-3 mt-6">
+                <button onClick={() => setObservationModal({isOpen: false, rowId: "", text: ""})} className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">Cancelar</button>
+                <button onClick={() => {
+                  handleChange(observationModal.rowId, "observations", observationModal.text);
+                  setObservationModal({isOpen: false, rowId: "", text: ""});
+                }} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">Salvar</button>
+              </div>
+            </div>
+          </div>
+        )}
           <table className="w-full text-left border-collapse print:text-[10px]">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200 print:border-black print:bg-gray-100">
@@ -255,7 +290,7 @@ export default function ExtraHoursClient() {
                 <tr key={r.id} className={`border-b border-gray-100 transition-colors print:border-black ${r.status === "PAGO" ? "bg-green-50/60 print:bg-transparent" : "bg-white hover:bg-gray-50/70"}`}>
                   <td className="px-4 py-3 border-r border-gray-100">
                     <div className="truncate max-w-[160px] sm:max-w-[200px] inline-flex items-center gap-1.5" title={r.name}>
-                      <span className="font-medium text-gray-900 text-sm">{r.name}</span>
+                      <Link href={`/ponto/${r.employeeId}?month=${month + 1}&year=${year}`} className="font-medium text-gray-900 hover:text-blue-600 hover:underline text-sm">{r.name}</Link>
                       {r.status === "PAGO" && (
                         <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0 print:hidden" />
                       )}
@@ -276,24 +311,20 @@ export default function ExtraHoursClient() {
                   <td className="px-4 py-2 border-r border-gray-100 text-right font-bold text-gray-900 bg-slate-50/50">
                     R$ {r.totalValue.toFixed(2)}
                   </td>
-                  <td className="px-2 py-1 border-r border-gray-100">
-                    <div className="relative group/obs w-full">
-                      <input
-                        type="text"
-                        value={r.observations}
-                        onChange={e => handleChange(r.id, "observations", e.target.value)}
-                        placeholder="Motivo / Detalhes"
-                        title={r.observations || undefined}
+                  <td className="px-2 py-1 border-r border-gray-100 align-middle">
+                    <div className="print:hidden flex justify-center">
+                      <button
+                        onClick={() => setObservationModal({isOpen: true, rowId: r.id, text: r.observations || ""})}
                         disabled={r.status === "PAGO" || !canEdit}
-                        className="w-full bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-200 rounded px-2 py-1 transition-all outline-none text-xs text-gray-600 disabled:cursor-not-allowed print:border-none print:p-0 print:bg-transparent print:appearance-none"
-                      />
-                      {r.observations && r.observations.trim().length > 0 && (
-                        <div className="absolute left-0 bottom-full mb-2 hidden group-hover/obs:block group-focus-within/obs:block z-30 w-72 bg-gray-900/95 backdrop-blur-sm text-white text-xs rounded-lg p-3 shadow-xl border border-gray-800 pointer-events-none break-words leading-relaxed">
-                          <div className="font-semibold text-gray-400 mb-1">Observação completa:</div>
-                          <div className="text-gray-100">{r.observations}</div>
-                          <div className="absolute top-full left-4 w-2 h-2 bg-gray-900/95 border-r border-b border-gray-800 rotate-45 -translate-y-1"></div>
-                        </div>
-                      )}
+                        className={`p-2 rounded-md transition-colors relative flex items-center justify-center ${r.observations ? 'text-blue-600 bg-blue-100 hover:bg-blue-200' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                        title={r.observations || "Adicionar Observação"}
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                        {r.observations && <span className="absolute top-0 right-0 w-2 h-2 bg-blue-500 rounded-full border border-white"></span>}
+                      </button>
+                    </div>
+                    <div className="hidden print:block text-[9px] text-black leading-tight break-words text-center">
+                      {r.observations}
                     </div>
                   </td>
                   <td className="px-4 py-2 text-center print:hidden">
@@ -505,7 +536,7 @@ export default function ExtraHoursClient() {
             </span>
           )}
           <button
-            onClick={() => window.print()}
+            onClick={handlePrint}
             className="flex items-center gap-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >
             <Printer className="h-4 w-4" /> Imprimir

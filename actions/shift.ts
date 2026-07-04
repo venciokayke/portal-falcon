@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { fromZonedTime, toZonedTime } from "date-fns-tz";
 import { addDays, setHours, setMinutes } from "date-fns";
+import { logActivity } from "@/actions/activity-log";
 
 const TIMEZONE = "America/Sao_Paulo";
 
@@ -61,6 +62,8 @@ export async function saveShifts(employeeId: string, shifts: ShiftInput[]) {
 
   // Execute all creations in a transaction
   await prisma.$transaction(operations);
+
+  await logActivity("SINCRONIZAR_PONTOS", `Sincronização em lote para funcionário ID: ${employeeId}`);
 }
 
 export async function createEmptyShift(employeeId: string, referenceDate: string): Promise<string> {
@@ -74,6 +77,8 @@ export async function createEmptyShift(employeeId: string, referenceDate: string
       checkOut: null,
     },
   });
+  
+  await logActivity("CRIAR_PONTO_MANUAL", `Ponto criado manualmente. Funcionário: ${employeeId} | Data: ${referenceDate}`);
   return shift.id;
 }
 
@@ -109,9 +114,11 @@ export async function getShifts(employeeId: string, month: number, year: number)
 }
 
 export async function deleteShift(shiftId: string) {
-  await prisma.shift.delete({
+  const shift = await prisma.shift.delete({
     where: { id: shiftId }
   });
+  
+  await logActivity("EXCLUIR_PONTO", `Ponto excluído. ID: ${shiftId} | Funcionário: ${shift.employeeId}`);
 }
 
 export async function updateSavedShift(
@@ -158,6 +165,8 @@ export async function updateSavedShift(
       ...(data.observations !== undefined && { observations: data.observations }),
     },
   });
+
+  await logActivity("EDITAR_PONTO", `Ponto editado. ID: ${shiftId} | Data: ${referenceDate}`);
 }
 
 // ── Novas Ações da Fase 3 ────────────────────────────────────────────────────
@@ -174,6 +183,8 @@ export async function updateEmployeeMonthParity(employeeId: string, month: numbe
     create: { employeeId, month, year, startParity },
     update: { startParity }
   });
+
+  await logActivity("EDITAR_PARIDADE", `Paridade alterada para ${startParity}. Funcionário: ${employeeId} | Mês/Ano: ${month}/${year}`);
 }
 
 export async function syncOvertimeEntry(employeeId: string, month: number, year: number, hours: number, totalValue: number) {
