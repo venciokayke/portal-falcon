@@ -310,6 +310,7 @@ export default function ExtraHoursClient() {
                       type="number" step="0.5" min="0"
                       value={r.hours}
                       onChange={e => handleChange(r.id, "hours", e.target.value)}
+                      onFocus={e => e.target.select()}
                       disabled={r.status === "PAGO" || !canEdit}
                       className={`${inputBase} text-center disabled:text-gray-400 disabled:cursor-not-allowed`}
                     />

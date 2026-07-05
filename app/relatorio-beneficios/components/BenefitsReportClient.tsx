@@ -440,6 +440,7 @@ export default function BenefitsReportClient({
                         type="number"
                         value={emp.vaUnid}
                         onChange={(e) => handleUpdate(emp.id, "vaUnid", e.target.value)}
+                        onFocus={e => e.target.select()}
                         className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:border-none print:p-0 text-center"
                       />
                     ) : (
@@ -454,6 +455,7 @@ export default function BenefitsReportClient({
                         type="number" step="0.01"
                         value={emp.vaValue}
                         onChange={(e) => handleUpdate(emp.id, "vaValue", e.target.value)}
+                        onFocus={e => e.target.select()}
                         className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none font-medium print:border-none print:p-0 text-right"
                       />
                     ) : (
@@ -468,6 +470,7 @@ export default function BenefitsReportClient({
                         type="number"
                         value={emp.vtUnid}
                         onChange={(e) => handleUpdate(emp.id, "vtUnid", e.target.value)}
+                        onFocus={e => e.target.select()}
                         className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:border-none print:p-0 text-center"
                       />
                     ) : (
@@ -482,6 +485,7 @@ export default function BenefitsReportClient({
                         type="number" step="0.01"
                         value={emp.vtValue}
                         onChange={(e) => handleUpdate(emp.id, "vtValue", e.target.value)}
+                        onFocus={e => e.target.select()}
                         className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none font-medium print:border-none print:p-0 text-right"
                       />
                     ) : (

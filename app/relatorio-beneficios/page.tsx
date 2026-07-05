@@ -26,18 +26,15 @@ export default async function RelatorioBeneficiosPage({ searchParams }: { search
   }
 
   const initialData = autoLoadEmployees.map((emp) => {
-    const vaUnid = emp.receivesVA ? 15 : 0;
-    const vtUnid = emp.receivesVT ? 15 : 0;
-
     return {
       id: emp.id,
       name: emp.name,
       receivesVA: emp.receivesVA,
       receivesVT: emp.receivesVT,
-      vaUnid: vaUnid.toString(),
-      vaValue: (vaUnid * 26.0).toFixed(2),
-      vtUnid: vtUnid.toString(),
-      vtValue: (vtUnid * 8.6).toFixed(2),
+      vaUnid: "0",
+      vaValue: "0.00",
+      vtUnid: "0",
+      vtValue: "0.00",
     };
   });
 

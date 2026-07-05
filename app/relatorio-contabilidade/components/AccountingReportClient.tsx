@@ -43,7 +43,7 @@ export default function AccountingReportClient({ initialData, initialMonth, init
   const [rowStates, setRowStates] = useState<Record<string, RowState>>(() => {
     const init: Record<string, RowState> = {};
     initialData.forEach(emp => {
-      init[emp.id] = { atestado: "", faltasFrom: "", faltasTo: "", descontosFrom: "", descontosTo: "", intervalarValue: emp.intervalarValue };
+      init[emp.id] = { atestado: "NÃO", faltasFrom: "", faltasTo: "", descontosFrom: "", descontosTo: "", intervalarValue: emp.intervalarValue };
     });
     return init;
   });
@@ -64,7 +64,7 @@ export default function AccountingReportClient({ initialData, initialMonth, init
           const dbEntry = dbEntries.find(e => e.employeeId === emp.id);
           if (dbEntry) {
             next[emp.id] = {
-              atestado: dbEntry.atestado || "",
+              atestado: dbEntry.atestado || "NÃO",
               faltasFrom: dbEntry.faltasFrom || "",
               faltasTo: dbEntry.faltasTo || "",
               descontosFrom: dbEntry.descontosFrom || "",
@@ -72,7 +72,7 @@ export default function AccountingReportClient({ initialData, initialMonth, init
               intervalarValue: dbEntry.intervalarValue || emp.intervalarValue,
             };
           } else {
-            next[emp.id] = prev[emp.id] ?? { atestado: "", faltasFrom: "", faltasTo: "", descontosFrom: "", descontosTo: "", intervalarValue: emp.intervalarValue };
+            next[emp.id] = prev[emp.id] ?? { atestado: "NÃO", faltasFrom: "", faltasTo: "", descontosFrom: "", descontosTo: "", intervalarValue: emp.intervalarValue };
           }
         });
         return next;
@@ -197,7 +197,7 @@ export default function AccountingReportClient({ initialData, initialMonth, init
           </thead>
           <tbody className="divide-y divide-gray-200 border-b border-gray-300">
             {data.map((emp) => {
-              const row = rowStates[emp.id] ?? { atestado: "", faltasFrom: "", faltasTo: "", descontosFrom: "", descontosTo: "", intervalarValue: emp.intervalarValue };
+              const row = rowStates[emp.id] ?? { atestado: "NÃO", faltasFrom: "", faltasTo: "", descontosFrom: "", descontosTo: "", intervalarValue: emp.intervalarValue };
               return (
                 <tr key={emp.id} className="hover:bg-gray-50 print:hover:bg-transparent">
                   <td className="px-4 py-2 border-r border-gray-200 font-medium text-gray-900 truncate max-w-[200px]" title={emp.name}>
@@ -216,9 +216,8 @@ export default function AccountingReportClient({ initialData, initialMonth, init
                       onChange={e => updateRow(emp.id, "atestado", e.target.value)}
                       className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0"
                     >
-                      <option value=""></option>
-                      <option value="SIM">SIM</option>
                       <option value="NÃO">NÃO</option>
+                      <option value="SIM">SIM</option>
                     </select>
                   </td>
                   <td className="px-4 py-2 border-r border-gray-200 text-gray-700 truncate max-w-[150px]" title={emp.workLocation}>
@@ -235,6 +234,7 @@ export default function AccountingReportClient({ initialData, initialMonth, init
                         type="text"
                         value={row.intervalarValue}
                         onChange={e => updateRow(emp.id, "intervalarValue", e.target.value)}
+                        onFocus={e => e.target.select()}
                         className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none font-medium print:border-none print:p-0 print:focus:ring-0 text-center"
                       />
                     )}

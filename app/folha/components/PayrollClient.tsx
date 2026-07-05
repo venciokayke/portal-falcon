@@ -430,6 +430,7 @@ export default function PayrollClient() {
                         type="number" step="0.01"
                         value={row.baseValue}
                         onChange={e => handleChange(row.id, "baseValue", e.target.value)}
+                        onFocus={e => e.target.select()}
                         disabled={row.isPaid || !canEdit}
                         className={`${inputBase} disabled:text-gray-400 disabled:cursor-not-allowed`}
                       />
@@ -441,6 +442,7 @@ export default function PayrollClient() {
                         type="number" step="0.01"
                         value={row.extras}
                         onChange={e => handleChange(row.id, "extras", e.target.value)}
+                        onFocus={e => e.target.select()}
                         disabled={row.isPaid || !canEdit}
                         className={`${inputBase} text-blue-700 focus:text-blue-800 disabled:text-gray-400 disabled:cursor-not-allowed`}
                       />
@@ -452,6 +454,7 @@ export default function PayrollClient() {
                         type="number" step="0.01"
                         value={!row.receivesVT ? 0 : row.vtValue}
                         onChange={e => handleChange(row.id, "vtValue", e.target.value)}
+                        onFocus={e => e.target.select()}
                         disabled={row.isPaid || !row.receivesVT || !canEdit}
                         className={`${inputBase} ${!row.receivesVT
                           ? 'bg-gray-200 cursor-not-allowed text-transparent border-transparent print:hidden'
@@ -466,6 +469,7 @@ export default function PayrollClient() {
                         type="number" step="0.01"
                         value={row.discounts}
                         onChange={e => handleChange(row.id, "discounts", e.target.value)}
+                        onFocus={e => e.target.select()}
                         disabled={row.isPaid || !canEdit}
                         className={`${inputBase} text-red-600 focus:text-red-700 disabled:text-gray-400 disabled:cursor-not-allowed`}
                       />
@@ -590,24 +594,24 @@ export default function PayrollClient() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Base / Salário</label>
-                  <input type="number" step="0.01" min="0" value={guestForm.baseValue} onChange={e => setGuestForm(p => ({ ...p, baseValue: e.target.value }))} placeholder="0.00" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none text-sm text-right" />
+                  <input type="number" step="0.01" min="0" value={guestForm.baseValue} onChange={e => setGuestForm(p => ({ ...p, baseValue: e.target.value }))} onFocus={e => e.target.select()} placeholder="0.00" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none text-sm text-right" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Extras</label>
-                  <input type="number" step="0.01" min="0" value={guestForm.extras} onChange={e => setGuestForm(p => ({ ...p, extras: e.target.value }))} placeholder="0.00" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none text-sm text-right" />
+                  <input type="number" step="0.01" min="0" value={guestForm.extras} onChange={e => setGuestForm(p => ({ ...p, extras: e.target.value }))} onFocus={e => e.target.select()} placeholder="0.00" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none text-sm text-right" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Vale Transporte</label>
-                  <input type="number" step="0.01" min="0" value={guestForm.vtValue} onChange={e => setGuestForm(p => ({ ...p, vtValue: e.target.value }))} placeholder="0.00" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none text-sm text-right" />
+                  <input type="number" step="0.01" min="0" value={guestForm.vtValue} onChange={e => setGuestForm(p => ({ ...p, vtValue: e.target.value }))} onFocus={e => e.target.select()} placeholder="0.00" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none text-sm text-right" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Descontos</label>
-                  <input type="number" step="0.01" min="0" value={guestForm.discounts} onChange={e => setGuestForm(p => ({ ...p, discounts: e.target.value }))} placeholder="0.00" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none text-sm text-right" />
+                  <input type="number" step="0.01" min="0" value={guestForm.discounts} onChange={e => setGuestForm(p => ({ ...p, discounts: e.target.value }))} onFocus={e => e.target.select()} placeholder="0.00" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none text-sm text-right" />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Observação</label>
-                <input type="text" value={guestForm.observations} onChange={e => setGuestForm(p => ({ ...p, observations: e.target.value }))} placeholder="Ex: Serviço prestado em 01/07" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none text-sm" />
+                <input type="text" value={guestForm.observations} onChange={e => setGuestForm(p => ({ ...p, observations: e.target.value }))} onFocus={e => e.target.select()} placeholder="Ex: Serviço prestado em 01/07" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none text-sm" />
               </div>
             </div>
             <div className="flex gap-3 mt-5">
