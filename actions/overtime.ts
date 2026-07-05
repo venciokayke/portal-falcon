@@ -12,9 +12,6 @@ export async function getOvertimeData(month: number, year: number) {
     where: { 
       month, 
       year,
-      employee: {
-        contractType: { not: "PJ_FIXO" }
-      },
     },
     include: {
       employee: {
@@ -68,7 +65,6 @@ export async function generateOvertimePreview(month: number, year: number) {
   const employees = await prisma.employee.findMany({
     where: { 
       isActive: true,
-      contractType: { not: "PJ_FIXO" }
     }
   });
 

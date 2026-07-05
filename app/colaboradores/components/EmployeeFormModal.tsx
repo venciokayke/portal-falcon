@@ -453,13 +453,13 @@ Você tem certeza que deseja salvar sem benefícios?`}
                   <label className="block text-sm font-medium text-gray-700 mb-1">Escala de Trabalho</label>
                   <select name="workSchedule" value={workSchedule}
                     onChange={(e) => setWorkSchedule(e.target.value)}
-                    disabled={["HORISTA", "PJ_HORISTA", "PJ_FIXO"].includes(contractType)}
-                    className={`${inputClass()} ${["HORISTA", "PJ_HORISTA", "PJ_FIXO"].includes(contractType) ? "opacity-60 cursor-not-allowed" : ""}`}>
+                    disabled={["HORISTA", "PJ_HORISTA"].includes(contractType)}
+                    className={`${inputClass()} ${["HORISTA", "PJ_HORISTA"].includes(contractType) ? "opacity-60 cursor-not-allowed" : ""}`}>
                     <option value="FIXED_220">{SCALE_LABELS.FIXED_220}</option>
                     <option value="SCALE_12X36">{SCALE_LABELS.SCALE_12X36}</option>
                     <option value="CUSTOM" disabled={contractType === "CLT"}>{SCALE_LABELS.CUSTOM}</option>
                   </select>
-                  {["HORISTA", "PJ_HORISTA", "PJ_FIXO"].includes(contractType) && (
+                  {["HORISTA", "PJ_HORISTA"].includes(contractType) && (
                     <input type="hidden" name="workSchedule" value="CUSTOM" />
                   )}
                 </div>
