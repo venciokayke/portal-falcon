@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { logActivity } from "@/actions/activity-log";
+import { calculatePayroll } from "@/utils/calculatePayroll";
 
 export async function getOvertimeData(month: number, year: number) {
   const records = await prisma.overtimeEntry.findMany({
@@ -62,13 +63,31 @@ export async function getOvertimeData(month: number, year: number) {
 }
 
 export async function generateOvertimePreview(month: number, year: number) {
-  const employees = await prisma.employee.findMany({
-    where: { 
-      isActive: true,
-    }
-  });
+  const startDate = new Date(Date.UTC(year, month, 1));
+  const nextMonth = month === 11 ? 0 : month + 1;
+  const nextYear = month === 11 ? year + 1 : year;
+  const endDate = new Date(Date.UTC(nextYear, nextMonth, 1));
+
+  const [employees, globalRates] = await Promise.all([
+    prisma.employee.findMany({
+      where: { isActive: true },
+      include: {
+        shifts: {
+          where: {
+            referenceDate: { gte: startDate, lt: endDate },
+          },
+        },
+        absenceExemptions: true,
+      }
+    }),
+    getGlobalRates(),
+  ]);
 
   for (const emp of employees) {
+    const payroll = calculatePayroll(emp as any, emp.shifts as any, month, year, globalRates.extraHourRate);
+
+    const isCLT = emp.contractType === "CLT";
+
     await prisma.overtimeEntry.upsert({
       where: {
         employeeId_month_year: {
@@ -82,8 +101,8 @@ export async function generateOvertimePreview(month: number, year: number) {
         employeeId: emp.id,
         month,
         year,
-        hours: 0,
-        totalValue: 0,
+        hours: isCLT ? (payroll.extraHoursBalance || 0) : 0,
+        totalValue: isCLT ? (payroll.extraValue || 0) : 0,
         observations: "",
         status: "PENDENTE",
       }
