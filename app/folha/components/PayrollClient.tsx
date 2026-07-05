@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
+import { usePersistedMonthYear } from "@/hooks/usePersistedMonthYear";
 import {
   getMonthlyPayrolls,
   generateMonthPreview,
@@ -74,9 +76,13 @@ type GuestRow = {
 };
 
 export default function PayrollClient() {
+  const searchParams = useSearchParams();
   const currentDate = new Date();
-  const [month, setMonth] = useState(currentDate.getMonth());
-  const [year, setYear] = useState(currentDate.getFullYear());
+  const { month, year, setMonth, setYear } = usePersistedMonthYear(
+    "folha",
+    searchParams.get("month"),
+    searchParams.get("year")
+  );
   const [rows, setRows] = useState<PayrollRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -737,6 +743,13 @@ export default function PayrollClient() {
             ))}
           </select>
           {isLoading && <Loader2 className="h-4 w-4 animate-spin text-blue-500 shrink-0" />}
+          <Link
+            href={`/horas-extras?month=${month + 1}&year=${year}`}
+            className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+            title="Ir para Horas Extras"
+          >
+            Horas Extras
+          </Link>
 
           {/* KPIs inline */}
           {rows.length > 0 && (

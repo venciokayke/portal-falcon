@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import AccountingReportClient from "@/app/relatorio-contabilidade/components/AccountingReportClient";
+import { Suspense } from "react";
+import { Loader2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -12,23 +14,13 @@ export default async function RelatorioContabilidadePage({ searchParams }: { sea
   const lastDay = new Date(year, month + 1, 0);
 
   const employees = await prisma.employee.findMany({
-    where: {
-      contractType: "CLT",
-      isActive: true,
-    },
+    where: { contractType: "CLT", isActive: true },
     include: {
       shifts: {
-        where: {
-          referenceDate: {
-            gte: firstDay,
-            lte: lastDay,
-          },
-        },
+        where: { referenceDate: { gte: firstDay, lte: lastDay } },
       },
     },
-    orderBy: {
-      name: "asc",
-    },
+    orderBy: { name: "asc" },
   });
 
   const reportData = employees.map((emp) => {
@@ -36,7 +28,6 @@ export default async function RelatorioContabilidadePage({ searchParams }: { sea
     if (emp.receivesIntervalHour) {
       intervalarValue = emp.shifts.length.toString();
     }
-
     return {
       id: emp.id,
       name: emp.name,
@@ -53,8 +44,9 @@ export default async function RelatorioContabilidadePage({ searchParams }: { sea
         <h1 className="text-2xl font-bold text-gray-900">Relatório de Fechamento - Contabilidade</h1>
         <p className="text-gray-500 mt-1">Preencha os dados e imprima o relatório para envio.</p>
       </div>
-      
-      <AccountingReportClient data={reportData} initialMonth={month} initialYear={year} />
+      <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-blue-500" /></div>}>
+        <AccountingReportClient initialData={reportData} initialMonth={month} initialYear={year} />
+      </Suspense>
     </div>
   );
 }

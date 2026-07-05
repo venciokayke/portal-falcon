@@ -76,6 +76,8 @@ model Employee {
   overtimeEntries      OvertimeEntry[]
   absenceExemptions    AbsenceExemption[]
   monthParities        EmployeeMonthParity[]
+  accountingReports    AccountingReportEntry[]
+  benefitsReports      BenefitsReportEntry[]
 
   @@map("employees")
 }
@@ -256,6 +258,53 @@ model EmployeeMonthParity {
 
   @@unique([employeeId, month, year])
   @@map("employee_month_parities")
+}
+
+model AccountingReportEntry {
+  id              String   @id @default(uuid()) @db.Uuid
+  employeeId      String   @db.Uuid
+  month           Int
+  year            Int
+  
+  atestado        String?
+  faltasFrom      String?
+  faltasTo        String?
+  descontosFrom   String?
+  descontosTo     String?
+  intervalarValue String?
+
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, month, year])
+  @@map("accounting_report_entries")
+}
+
+model BenefitsReportEntry {
+  id              String   @id @default(uuid()) @db.Uuid
+  employeeId      String   @db.Uuid
+  month           Int
+  year            Int
+  
+  vaUnid          String?
+  vaValue         String?
+  vtUnid          String?
+  vtValue         String?
+
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, month, year])
+  @@map("benefits_report_entries")
+}
+
+model MonthlyReportConfig {
+  id       String @id @default(uuid()) @db.Uuid
+  month    Int
+  year     Int
+  vaRate   Decimal @db.Decimal(10, 2)
+  vtRate   Decimal @db.Decimal(10, 2)
+
+  @@unique([month, year])
+  @@map("monthly_report_configs")
 }
 
 model ActivityLog {

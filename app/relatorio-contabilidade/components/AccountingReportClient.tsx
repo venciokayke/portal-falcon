@@ -1,9 +1,12 @@
 "use client";
 
-import { Printer, Calendar } from "lucide-react";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Printer, Calendar, Loader2, Save, Check } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import { logActivity } from "@/actions/activity-log";
+import { getAccountingReportData } from "@/actions/accounting-report";
+import { saveAccountingReportEntries, getAccountingReportEntries } from "@/actions/accounting-report-db";
+import { usePersistedMonthYear } from "@/hooks/usePersistedMonthYear";
+
 interface EmployeeData {
   id: string;
   name: string;
@@ -13,23 +16,104 @@ interface EmployeeData {
   intervalarValue: string;
 }
 
+interface RowState {
+  atestado: string;
+  faltasFrom: string;
+  faltasTo: string;
+  descontosFrom: string;
+  descontosTo: string;
+  intervalarValue: string;
+}
+
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-export default function AccountingReportClient({ data, initialMonth, initialYear }: { data: EmployeeData[], initialMonth: number, initialYear: number }) {
-  const router = useRouter();
-  const [month, setMonth] = useState(initialMonth);
-  const [year, setYear] = useState(initialYear);
+export default function AccountingReportClient({ initialData, initialMonth, initialYear }: { initialData: EmployeeData[], initialMonth: number, initialYear: number }) {
+  const { month, year, setMonth, setYear } = usePersistedMonthYear(
+    "relatorio-contabilidade",
+    String(initialMonth + 1),
+    String(initialYear)
+  );
 
-  const handleDateChange = (newMonth: number, newYear: number) => {
-    setMonth(newMonth);
-    setYear(newYear);
-    router.push(`/relatorio-contabilidade?month=${newMonth + 1}&year=${newYear}`);
+  const [data, setData] = useState<EmployeeData[]>(initialData);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+
+  // Estado local de todos os inputs editáveis, keyed by employeeId
+  const [rowStates, setRowStates] = useState<Record<string, RowState>>(() => {
+    const init: Record<string, RowState> = {};
+    initialData.forEach(emp => {
+      init[emp.id] = { atestado: "", faltasFrom: "", faltasTo: "", descontosFrom: "", descontosTo: "", intervalarValue: emp.intervalarValue };
+    });
+    return init;
+  });
+
+  const loadData = useCallback(async (m: number, y: number) => {
+    setIsLoading(true);
+    setSavedAt(null);
+    try {
+      const [result, dbEntries] = await Promise.all([
+        getAccountingReportData(m, y),
+        getAccountingReportEntries(m, y)
+      ]);
+      setData(result);
+      // Inicializa novos funcionários no estado, preservando os que já existem
+      setRowStates(prev => {
+        const next: Record<string, RowState> = {};
+        result.forEach(emp => {
+          const dbEntry = dbEntries.find(e => e.employeeId === emp.id);
+          if (dbEntry) {
+            next[emp.id] = {
+              atestado: dbEntry.atestado || "",
+              faltasFrom: dbEntry.faltasFrom || "",
+              faltasTo: dbEntry.faltasTo || "",
+              descontosFrom: dbEntry.descontosFrom || "",
+              descontosTo: dbEntry.descontosTo || "",
+              intervalarValue: dbEntry.intervalarValue || emp.intervalarValue,
+            };
+          } else {
+            next[emp.id] = prev[emp.id] ?? { atestado: "", faltasFrom: "", faltasTo: "", descontosFrom: "", descontosTo: "", intervalarValue: emp.intervalarValue };
+          }
+        });
+        return next;
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Carrega quando mudar mês/ano
+  useEffect(() => {
+    loadData(month, year);
+  }, [month, year, loadData]);
+
+  const updateRow = (id: string, field: keyof RowState, value: string) => {
+    setRowStates(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
   };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const entriesToSave = data.map(emp => {
+        const row = rowStates[emp.id];
+        return {
+          employeeId: emp.id,
+          ...row
+        };
+      });
+      await saveAccountingReportEntries(month, year, entriesToSave);
+      setSavedAt(new Date().toLocaleTimeString("pt-BR"));
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar os dados.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handlePrint = () => {
     logActivity("IMPRESSAO_RELATORIO_CONTABILIDADE", `Mês/Ano: ${month + 1}/${year}`);
-    setTimeout(() => {
-      window.print();
-    }, 100);
+    setTimeout(() => window.print(), 100);
   };
 
   return (
@@ -37,32 +121,13 @@ export default function AccountingReportClient({ data, initialMonth, initialYear
       <style dangerouslySetInnerHTML={{
         __html: `
         @media print {
-          @page {
-            size: landscape;
-            margin: 5mm;
-          }
-          body {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          input[type="date"]::-webkit-calendar-picker-indicator {
-            display: none !important;
-            -webkit-appearance: none !important;
-          }
-          /* Ajustes de layout para caber na folha */
-          table, th, td {
-            font-size: 10px !important;
-          }
-          th, td {
-            padding: 4px !important;
-          }
-          input[type="date"] {
-            width: 70px !important;
-            font-size: 10px !important;
-          }
-          th.w-\\[200px\\] {
-            width: 155px !important;
-          }
+          @page { size: landscape; margin: 5mm; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          input[type="date"]::-webkit-calendar-picker-indicator { display: none !important; -webkit-appearance: none !important; }
+          table, th, td { font-size: 10px !important; }
+          th, td { padding: 4px !important; }
+          input[type="date"] { width: 70px !important; font-size: 10px !important; }
+          th.w-\\[200px\\] { width: 155px !important; }
         }
       `}} />
 
@@ -71,28 +136,44 @@ export default function AccountingReportClient({ data, initialMonth, initialYear
           <Calendar className="text-gray-400 h-5 w-5" />
           <select
             value={month}
-            onChange={e => handleDateChange(Number(e.target.value), year)}
+            onChange={e => setMonth(Number(e.target.value))}
             className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700"
           >
             {MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}
           </select>
           <select
             value={year}
-            onChange={e => handleDateChange(month, Number(e.target.value))}
+            onChange={e => setYear(Number(e.target.value))}
             className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700"
           >
             {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
+          {isLoading && <Loader2 className="h-4 w-4 animate-spin text-blue-500" />}
         </div>
-        <button
-          onClick={handlePrint}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
-        >
-          <Printer className="h-4 w-4" />
-          Imprimir Relatório
-        </button>
+        <div className="flex items-center gap-2">
+          {savedAt && (
+            <span className="text-xs text-green-600 flex items-center gap-1 mr-2">
+              <Check className="h-3.5 w-3.5" /> Salvo às {savedAt}
+            </span>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={isSaving || isLoading}
+            className="flex items-center gap-2 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm disabled:opacity-50"
+          >
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Salvar
+          </button>
+          <button
+            onClick={handlePrint}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+          >
+            <Printer className="h-4 w-4" />
+            Imprimir Relatório
+          </button>
+        </div>
       </div>
 
       <div className="overflow-x-auto print:overflow-visible w-full">
@@ -115,74 +196,88 @@ export default function AccountingReportClient({ data, initialMonth, initialYear
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 border-b border-gray-300">
-            {data.map((emp) => (
-              <tr key={emp.id} className="hover:bg-gray-50 print:hover:bg-transparent">
-                <td className="px-4 py-2 border-r border-gray-200 font-medium text-gray-900 truncate max-w-[200px]" title={emp.name}>
-                  {emp.name}
-                </td>
-                <td className="px-3 py-2 border-r border-gray-200 text-center font-bold">
-                  {emp.receivesNightHazard ? (
-                    <span className="text-red-600">SIM</span>
-                  ) : (
-                    <span className="text-gray-500">NÃO</span>
-                  )}
-                </td>
-                <td className="px-2 py-1 border-r border-gray-200">
-                  <select
-                    className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0"
-                  >
-                    <option value=""></option>
-                    <option value="SIM">SIM</option>
-                    <option value="NÃO">NÃO</option>
-                  </select>
-                </td>
-                <td className="px-4 py-2 border-r border-gray-200 text-gray-700 truncate max-w-[150px]" title={emp.workLocation}>
-                  {emp.workLocation}
-                </td>
-                <td className="px-4 py-2 border-r border-gray-200 text-gray-700 truncate max-w-[150px]" title={emp.standardHours}>
-                  {emp.standardHours}
-                </td>
-                <td className="px-2 py-1 border-r border-gray-200">
-                  {emp.intervalarValue === "NÃO" ? (
-                    <span className="block text-center font-semibold text-gray-400 py-1">NÃO</span>
-                  ) : (
-                    <input
-                      type="text"
-                      defaultValue={emp.intervalarValue}
-                      className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none font-medium print:border-none print:p-0 print:focus:ring-0 text-center"
-                    />
-                  )}
-                </td>
-                <td className="px-2 py-1 border-r border-gray-200 align-middle">
-                  <div className="flex items-center justify-center gap-1 w-full">
-                    <input
-                      type="date"
-                      className="w-[95px] text-xs bg-transparent border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0 text-center"
-                    />
-                    <span className="text-gray-500 font-medium text-xs print:text-black">a</span>
-                    <input
-                      type="date"
-                      className="w-[95px] text-xs bg-transparent border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0 text-center"
-                    />
-                  </div>
-                </td>
-                <td className="px-2 py-1 align-middle">
-                  <div className="flex items-center justify-center gap-1 w-full">
-                    <input
-                      type="date"
-                      className="w-[95px] text-xs bg-transparent border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0 text-center"
-                    />
-                    <span className="text-gray-500 font-medium text-xs print:text-black">a</span>
-                    <input
-                      type="date"
-                      className="w-[95px] text-xs bg-transparent border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0 text-center"
-                    />
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {data.map((emp) => {
+              const row = rowStates[emp.id] ?? { atestado: "", faltasFrom: "", faltasTo: "", descontosFrom: "", descontosTo: "", intervalarValue: emp.intervalarValue };
+              return (
+                <tr key={emp.id} className="hover:bg-gray-50 print:hover:bg-transparent">
+                  <td className="px-4 py-2 border-r border-gray-200 font-medium text-gray-900 truncate max-w-[200px]" title={emp.name}>
+                    {emp.name}
+                  </td>
+                  <td className="px-3 py-2 border-r border-gray-200 text-center font-bold">
+                    {emp.receivesNightHazard ? (
+                      <span className="text-red-600">SIM</span>
+                    ) : (
+                      <span className="text-gray-500">NÃO</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-1 border-r border-gray-200">
+                    <select
+                      value={row.atestado}
+                      onChange={e => updateRow(emp.id, "atestado", e.target.value)}
+                      className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0"
+                    >
+                      <option value=""></option>
+                      <option value="SIM">SIM</option>
+                      <option value="NÃO">NÃO</option>
+                    </select>
+                  </td>
+                  <td className="px-4 py-2 border-r border-gray-200 text-gray-700 truncate max-w-[150px]" title={emp.workLocation}>
+                    {emp.workLocation}
+                  </td>
+                  <td className="px-4 py-2 border-r border-gray-200 text-gray-700 truncate max-w-[150px]" title={emp.standardHours}>
+                    {emp.standardHours}
+                  </td>
+                  <td className="px-2 py-1 border-r border-gray-200">
+                    {emp.intervalarValue === "NÃO" ? (
+                      <span className="block text-center font-semibold text-gray-400 py-1">NÃO</span>
+                    ) : (
+                      <input
+                        type="text"
+                        value={row.intervalarValue}
+                        onChange={e => updateRow(emp.id, "intervalarValue", e.target.value)}
+                        className="w-full bg-transparent border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none font-medium print:border-none print:p-0 print:focus:ring-0 text-center"
+                      />
+                    )}
+                  </td>
+                  <td className="px-2 py-1 border-r border-gray-200 align-middle">
+                    <div className="flex items-center justify-center gap-1 w-full">
+                      <input
+                        type="date"
+                        value={row.faltasFrom}
+                        onChange={e => updateRow(emp.id, "faltasFrom", e.target.value)}
+                        className="w-[95px] text-xs bg-transparent border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0 text-center"
+                      />
+                      <span className="text-gray-500 font-medium text-xs print:text-black">a</span>
+                      <input
+                        type="date"
+                        value={row.faltasTo}
+                        onChange={e => updateRow(emp.id, "faltasTo", e.target.value)}
+                        className="w-[95px] text-xs bg-transparent border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0 text-center"
+                      />
+                    </div>
+                  </td>
+                  <td className="px-2 py-1 align-middle">
+                    <div className="flex items-center justify-center gap-1 w-full">
+                      <input
+                        type="date"
+                        value={row.descontosFrom}
+                        onChange={e => updateRow(emp.id, "descontosFrom", e.target.value)}
+                        className="w-[95px] text-xs bg-transparent border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0 text-center"
+                      />
+                      <span className="text-gray-500 font-medium text-xs print:text-black">a</span>
+                      <input
+                        type="date"
+                        value={row.descontosTo}
+                        onChange={e => updateRow(emp.id, "descontosTo", e.target.value)}
+                        className="w-[95px] text-xs bg-transparent border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0 text-center"
+                      />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
 
-            {data.length === 0 && (
+            {data.length === 0 && !isLoading && (
               <tr>
                 <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                   Nenhum funcionário CLT encontrado para exibir no relatório.

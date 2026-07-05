@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import ExtraHoursClient from "./components/ExtraHoursClient";
 import { Timer } from "lucide-react";
 
@@ -19,7 +20,9 @@ export default function ExtraHoursPage() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <ExtraHoursClient />
+        <Suspense fallback={<div className="p-8 text-center text-gray-400">Carregando...</div>}>
+          <ExtraHoursClient />
+        </Suspense>
       </div>
     </div>
   );

@@ -31,8 +31,35 @@ export default function TimeTrackingClient({
   initialMonthParity: string;
 }) {
   const currentDate = new Date();
-  const [selectedMonth, setSelectedMonth] = useState(initialMonth);
-  const [selectedYear, setSelectedYear] = useState(initialYear);
+
+  const getStoredMonth = () => {
+    if (typeof window !== "undefined") {
+      const v = sessionStorage.getItem(`ponto_${employee.id}_month`);
+      if (v !== null) return parseInt(v);
+    }
+    return initialMonth;
+  };
+
+  const getStoredYear = () => {
+    if (typeof window !== "undefined") {
+      const v = sessionStorage.getItem(`ponto_${employee.id}_year`);
+      if (v !== null) return parseInt(v);
+    }
+    return initialYear;
+  };
+
+  const [selectedMonth, setSelectedMonthState] = useState<number>(getStoredMonth);
+  const [selectedYear, setSelectedYearState] = useState<number>(getStoredYear);
+
+  const setSelectedMonth = (val: number) => {
+    setSelectedMonthState(val);
+    if (typeof window !== "undefined") sessionStorage.setItem(`ponto_${employee.id}_month`, String(val));
+  };
+
+  const setSelectedYear = (val: number) => {
+    setSelectedYearState(val);
+    if (typeof window !== "undefined") sessionStorage.setItem(`ponto_${employee.id}_year`, String(val));
+  };
 
   const [shifts, setShifts] = useState<Record<string, any[]>>({});
   const [savedShiftsList, setSavedShiftsList] = useState<any[]>([]);

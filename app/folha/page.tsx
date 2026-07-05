@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Wallet } from "lucide-react";
 import PayrollClient from "./components/PayrollClient";
 
@@ -17,7 +18,9 @@ export default function FolhaPage() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <PayrollClient />
+        <Suspense fallback={<div className="p-8 text-center text-gray-400">Carregando...</div>}>
+          <PayrollClient />
+        </Suspense>
       </div>
     </div>
   );

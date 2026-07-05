@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Printer, Plus, Calendar, MessageSquare } from "lucide-react";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { Printer, Plus, Calendar, MessageSquare, Loader2, Save, Check } from "lucide-react";
 import { logActivity } from "@/actions/activity-log";
+import { getBenefitsReportEntries, getMonthlyReportConfig, saveBenefitsReportEntries, saveMonthlyReportConfig } from "@/actions/benefits-report-db";
 
 interface EmployeeBenefit {
   id: string;
@@ -28,12 +29,121 @@ export default function BenefitsReportClient({
   const currentDate = new Date();
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth());
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
-  const [vaRate, setVaRate] = useState(26.00);
-  const [vtRate, setVtRate] = useState(8.60);
-  const [data, setData] = useState<EmployeeBenefit[]>(initialData);
+
+  const getStoredData = (): EmployeeBenefit[] => {
+    if (typeof window !== "undefined") {
+      try {
+        const v = sessionStorage.getItem("beneficios_data");
+        if (v) return JSON.parse(v);
+      } catch {}
+    }
+    return initialData;
+  };
+
+  const getStoredRate = (key: string, fallback: number): number => {
+    if (typeof window !== "undefined") {
+      const v = sessionStorage.getItem(key);
+      if (v !== null) return parseFloat(v);
+    }
+    return fallback;
+  };
+
+  const [vaRate, setVaRateState] = useState(() => getStoredRate("beneficios_vaRate", 26.00));
+  const [vtRate, setVtRateState] = useState(() => getStoredRate("beneficios_vtRate", 8.60));
+  const [data, setData] = useState<EmployeeBenefit[]>(getStoredData);
   const [exceptions, setExceptions] = useState(availableExceptions);
   const [selectedException, setSelectedException] = useState("");
   const [observationModal, setObservationModal] = useState<{isOpen: boolean; empId: string; text: string}>({isOpen: false, empId: "", text: ""});
+  
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+
+  const loadData = useCallback(async (m: number, y: number) => {
+    setIsLoading(true);
+    setSavedAt(null);
+    try {
+      const [dbEntries, dbConfig] = await Promise.all([
+        getBenefitsReportEntries(m, y),
+        getMonthlyReportConfig(m, y)
+      ]);
+
+      if (dbConfig) {
+        setVaRateState(dbConfig.vaRate);
+        setVtRateState(dbConfig.vtRate);
+      } else {
+        setVaRateState(26.00);
+        setVtRateState(8.60);
+      }
+
+      if (dbEntries.length > 0) {
+        // Find which ones are exceptions based on the initial data
+        const initialIds = new Set(initialData.map(e => e.id));
+        const newExceptions = dbEntries
+          .filter(e => !initialIds.has(e.employeeId))
+          .map(e => {
+            const emp = availableExceptions.find(ex => ex.id === e.employeeId);
+            return emp ? {
+              id: emp.id,
+              name: emp.name,
+              receivesVA: emp.receivesVA,
+              receivesVT: emp.receivesVT,
+              vaUnid: e.vaUnid || "",
+              vaValue: e.vaValue || "0.00",
+              vtUnid: e.vtUnid || "",
+              vtValue: e.vtValue || "0.00",
+              observations: ""
+            } : null;
+          }).filter(Boolean) as EmployeeBenefit[];
+
+        const newMainData = initialData.map(emp => {
+          const dbEntry = dbEntries.find(e => e.employeeId === emp.id);
+          if (dbEntry) {
+            return {
+              ...emp,
+              vaUnid: dbEntry.vaUnid || "",
+              vaValue: dbEntry.vaValue || "0.00",
+              vtUnid: dbEntry.vtUnid || "",
+              vtValue: dbEntry.vtValue || "0.00"
+            };
+          }
+          return emp;
+        });
+
+        setData([...newMainData, ...newExceptions]);
+        
+        // Remove those exceptions from available exceptions
+        const newExceptionIds = new Set(newExceptions.map(e => e.id));
+        setExceptions(availableExceptions.filter(e => !newExceptionIds.has(e.id)));
+      } else {
+        setData(initialData);
+        setExceptions(availableExceptions);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [initialData, availableExceptions]);
+
+  useEffect(() => {
+    loadData(selectedMonth, selectedYear);
+  }, [selectedMonth, selectedYear, loadData]);
+
+  // Persiste os dados editados no sessionStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("beneficios_data", JSON.stringify(data));
+    }
+  }, [data]);
+
+  const setVaRate = (v: number) => {
+    setVaRateState(v);
+    if (typeof window !== "undefined") sessionStorage.setItem("beneficios_vaRate", String(v));
+  };
+
+  const setVtRate = (v: number) => {
+    setVtRateState(v);
+    if (typeof window !== "undefined") sessionStorage.setItem("beneficios_vtRate", String(v));
+  };
 
   const handleUpdate = (id: string, field: keyof EmployeeBenefit, value: string) => {
     setData((prev) =>
@@ -61,6 +171,29 @@ export default function BenefitsReportClient({
         ...emp,
         vtValue: emp.receivesVT ? ((parseFloat(emp.vtUnid) || 0) * newRate).toFixed(2) : emp.vtValue
       })));
+    }
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const entriesToSave = data.map(emp => ({
+        employeeId: emp.id,
+        vaUnid: emp.vaUnid,
+        vaValue: emp.vaValue,
+        vtUnid: emp.vtUnid,
+        vtValue: emp.vtValue,
+      }));
+      await Promise.all([
+        saveBenefitsReportEntries(selectedMonth, selectedYear, entriesToSave),
+        saveMonthlyReportConfig(selectedMonth, selectedYear, vaRate, vtRate)
+      ]);
+      setSavedAt(new Date().toLocaleTimeString("pt-BR"));
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar os dados.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -201,6 +334,7 @@ export default function BenefitsReportClient({
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>
+            {isLoading && <Loader2 className="h-4 w-4 animate-spin text-blue-500" />}
             </div>
             {/* Adicionar exceção */}
             <select
@@ -222,13 +356,28 @@ export default function BenefitsReportClient({
               Adicionar Exceção
             </button>
           </div>
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
-          >
-            <Printer className="h-4 w-4" />
-            Imprimir Relatório
-          </button>
+          <div className="flex items-center gap-2">
+            {savedAt && (
+              <span className="text-xs text-green-600 flex items-center gap-1 mr-2">
+                <Check className="h-3.5 w-3.5" /> Salvo às {savedAt}
+              </span>
+            )}
+            <button
+              onClick={handleSave}
+              disabled={isSaving || isLoading}
+              className="flex items-center gap-2 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm disabled:opacity-50"
+            >
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Salvar
+            </button>
+            <button
+              onClick={handlePrint}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+            >
+              <Printer className="h-4 w-4" />
+              Imprimir Relatório
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto print:overflow-visible w-full">

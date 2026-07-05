@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
+import { usePersistedMonthYear } from "@/hooks/usePersistedMonthYear";
 import {
   getOvertimeData,
   generateOvertimePreview,
@@ -52,9 +54,13 @@ const inputBase =
   "w-full bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-200 rounded px-2 py-1 transition-all outline-none text-right font-medium print:border-none print:bg-transparent print:p-0 print:ring-0 print:appearance-none";
 
 export default function ExtraHoursClient() {
+  const searchParams = useSearchParams();
   const currentDate = new Date();
-  const [month, setMonth] = useState(currentDate.getMonth());
-  const [year, setYear] = useState(currentDate.getFullYear());
+  const { month, year, setMonth, setYear } = usePersistedMonthYear(
+    "extras",
+    searchParams.get("month"),
+    searchParams.get("year")
+  );
   const [rows, setRows] = useState<OvertimeRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -509,6 +515,13 @@ export default function ExtraHoursClient() {
             ))}
           </select>
           {isLoading && <Loader2 className="h-4 w-4 animate-spin text-blue-500" />}
+          <Link
+            href={`/folha?month=${month + 1}&year=${year}`}
+            className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+            title="Ir para Fechamento de Folha"
+          >
+            Fechamento de Folha
+          </Link>
 
           {rows.length > 0 && (
             <div className="flex items-center gap-2 ml-1 flex-wrap">
