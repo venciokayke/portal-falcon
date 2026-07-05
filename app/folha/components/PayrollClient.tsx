@@ -383,7 +383,7 @@ export default function PayrollClient() {
             </thead>
             <tbody>
               {groupRows.map((row) => {
-                const rowTotal = (Number(row.baseValue) || 0) + (Number(row.extras) || 0) - (Number(row.discounts) || 0);
+                const rowTotal = (Number(row.baseValue) || 0) + (Number(row.extras) || 0) + (Number(row.vtValue) || 0) - (Number(row.discounts) || 0);
                 return (
                   <tr
                     key={row.id}
