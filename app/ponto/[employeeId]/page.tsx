@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import TimeTrackingClient from "./components/TimeTrackingClient";
 import { CalendarClock } from "lucide-react";
 import Link from "next/link";
+import { getGlobalRates } from "@/actions/config";
 
 export default async function PontoPage({
   params,
@@ -39,6 +40,9 @@ export default async function PontoPage({
       },
     },
   });
+
+  // Obter taxas globais
+  const globalRates = await getGlobalRates();
 
   // Convert decimal to number for client boundary
   const serializedEmployee = {
@@ -82,6 +86,7 @@ export default async function PontoPage({
           initialMonth={initialMonth}
           initialYear={initialYear}
           initialMonthParity={monthParity?.startParity || employee.startParity || "NONE"}
+          globalRates={globalRates}
         />
       </div>
     </div>

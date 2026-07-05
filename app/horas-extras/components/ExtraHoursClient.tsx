@@ -43,6 +43,7 @@ type OvertimeRow = {
   registrationCompany: string;
   effectiveRate: number;
   hours: number | string;
+  extraValue: number | string;
   totalValue: number;
   observations: string;
   status: string;
@@ -87,6 +88,7 @@ export default function ExtraHoursClient() {
     isOpen: false, title: "", message: ""
   });
   const [observationModal, setObservationModal] = useState<{isOpen: boolean; rowId: string; text: string}>({isOpen: false, rowId: "", text: ""});
+  const [hasChanges, setHasChanges] = useState(false);
 
   const { data: session } = useSession();
   const isAdminOrManager = (session?.user as any)?.role === "ADMIN" || (session?.user as any)?.role === "MANAGER";
@@ -147,15 +149,17 @@ export default function ExtraHoursClient() {
   };
 
   const handleChange = (id: string, field: keyof OvertimeRow, value: string) => {
+    setHasChanges(true);
     setRows(prev => prev.map(r => {
       if (r.id !== id) return r;
       const updated = { ...r, [field]: value };
 
-      // Recalculate total if hours change
-      if (field === "hours") {
+      // Recalculate total if hours or extraValue change
+      if (field === "hours" || field === "extraValue") {
         const h = parseFloat(updated.hours as string) || 0;
+        const ev = parseFloat(updated.extraValue as string) || 0;
         const rate = Number(r.effectiveRate) || 0;
-        updated.totalValue = h * rate;
+        updated.totalValue = (h * rate) + ev;
       }
 
       return updated;
@@ -168,10 +172,12 @@ export default function ExtraHoursClient() {
       await saveOvertimeRecords(rows.map(r => ({
         id: r.id,
         hours: parseFloat(r.hours as string) || 0,
+        extraValue: parseFloat(r.extraValue as string) || 0,
         totalValue: Number(r.totalValue) || 0,
         observations: r.observations || "",
       })));
       setSavedAt(new Date().toLocaleTimeString("pt-BR"));
+      setHasChanges(false);
     } catch {
       setErrorModal({ isOpen: true, title: "Erro ao salvar", message: "Não foi possível salvar as horas extras. Tente novamente." });
     } finally {
@@ -214,6 +220,14 @@ export default function ExtraHoursClient() {
       window.print();
     }, 100);
   };
+
+  useEffect(() => {
+    if (!hasChanges) return;
+    const timer = setTimeout(() => {
+      handleSave();
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [hasChanges, rows]);
 
   const grupos = [
     { key: "FALCON_SERVICE", rows: rows.filter(r => r.registrationCompany === "FALCON_SERVICE") },
@@ -279,13 +293,15 @@ export default function ExtraHoursClient() {
             </div>
           </div>
         )}
+        <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse print:text-[10px]">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200 print:border-black print:bg-gray-100">
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[160px]">Funcionário</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28 text-right">Taxa/Base</th>
                 <th className="px-2 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32 text-center text-blue-600 bg-blue-50/50">Qtd Horas</th>
-                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Valor Total</th>
+                <th className="px-2 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32 text-center text-emerald-600 bg-emerald-50/50">Valores Extras</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Valor a Receber</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[150px]">Observações</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28 text-center print:hidden">Status</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32 print:hidden">Aprovação</th>
@@ -314,6 +330,19 @@ export default function ExtraHoursClient() {
                       disabled={r.status === "PAGO" || !canEdit}
                       className={`${inputBase} text-center disabled:text-gray-400 disabled:cursor-not-allowed`}
                     />
+                  </td>
+                  <td className="px-2 py-1 border-r border-gray-100 bg-emerald-50/30">
+                    <div className="flex items-center">
+                      <span className="text-gray-400 text-xs pl-2">R$</span>
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={r.extraValue}
+                        onChange={e => handleChange(r.id, "extraValue", e.target.value)}
+                        onFocus={e => e.target.select()}
+                        disabled={r.status === "PAGO" || !canEdit}
+                        className={`${inputBase} text-center disabled:text-gray-400 disabled:cursor-not-allowed`}
+                      />
+                    </div>
                   </td>
                   <td className="px-4 py-2 border-r border-gray-100 text-right font-bold text-gray-900 bg-slate-50/50">
                     R$ {r.totalValue.toFixed(2)}
@@ -388,6 +417,7 @@ export default function ExtraHoursClient() {
           </table>
         </div>
       </div>
+    </div>
     );
   };
 
@@ -543,41 +573,39 @@ export default function ExtraHoursClient() {
           )}
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {savedAt && (
-            <span className="text-xs text-green-600 flex items-center gap-1 mr-1">
-              <Check className="h-3.5 w-3.5" /> Salvo às {savedAt}
-            </span>
-          )}
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-          >
-            <Printer className="h-4 w-4" /> Imprimir
-          </button>
-
+        <div className="flex items-center gap-3 flex-nowrap shrink-0">
           {rows.length > 0 && (
             <button
               onClick={handleGenerate}
               disabled={isGenerating || isLoading || !canEdit}
               title="Adiciona novos colaboradores cadastrados ao período atual sem perder dados existentes."
-              className="flex items-center gap-2 border border-dashed border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 border border-dashed border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 shrink-0 whitespace-nowrap"
             >
-              {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {isGenerating ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <RefreshCw className="h-4 w-4 shrink-0" />}
               {isGenerating ? "Sincronizando..." : "Sincronizar"}
             </button>
           )}
-
-          {rows.length > 0 && (
-            <button
-              onClick={handleSave}
-              disabled={isSaving || isLoading || !canEdit}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm disabled:opacity-50"
-            >
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {isSaving ? "Salvando..." : "Salvar Alterações"}
-            </button>
-          )}
+          <div className="flex items-center gap-1.5 px-2 py-2 rounded-lg justify-end shrink-0 whitespace-nowrap">
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 text-blue-500 animate-spin shrink-0" />
+                <span className="text-sm text-blue-600 font-medium">Salvando...</span>
+              </>
+            ) : savedAt ? (
+              <>
+                <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                <span className="text-sm text-gray-400">Salvo às {savedAt}</span>
+              </>
+            ) : (
+              <span className="text-sm text-gray-400">Salvo</span>
+            )}
+          </div>
+          <button
+            onClick={handlePrint}
+            className="flex items-center gap-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors shrink-0 whitespace-nowrap"
+          >
+            <Printer className="h-4 w-4 shrink-0" /> Imprimir
+          </button>
         </div>
       </div>
 

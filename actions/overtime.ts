@@ -53,6 +53,7 @@ export async function getOvertimeData(month: number, year: number) {
       contractType: emp.contractType,
       effectiveRate,
       hours: Number(r.hours),
+      extraValue: Number(r.extraValue),
       totalValue: Number(r.totalValue),
       observations: r.observations ?? "",
       status: r.status,
@@ -102,6 +103,7 @@ export async function generateOvertimePreview(month: number, year: number) {
         month,
         year,
         hours: isCLT ? (payroll.extraHoursBalance || 0) : 0,
+        extraValue: 0,
         totalValue: isCLT ? (payroll.extraValue || 0) : 0,
         observations: "",
         status: "PENDENTE",
@@ -111,12 +113,13 @@ export async function generateOvertimePreview(month: number, year: number) {
   revalidatePath("/horas-extras");
 }
 
-export async function saveOvertimeRecords(rows: { id: string, hours: number, totalValue: number, observations: string }[]) {
+export async function saveOvertimeRecords(rows: { id: string, hours: number, extraValue: number, totalValue: number, observations: string }[]) {
   for (const row of rows) {
     await prisma.overtimeEntry.update({
       where: { id: row.id },
       data: {
         hours: row.hours,
+        extraValue: row.extraValue,
         totalValue: row.totalValue,
         observations: row.observations,
       }

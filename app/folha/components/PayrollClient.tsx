@@ -93,6 +93,7 @@ export default function PayrollClient() {
   const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false, title: "", message: ""
   });
+  const [hasChanges, setHasChanges] = useState(false);
 
   // Estado das linhas avulsas (locais, sem persistência no banco)
   const [guestRows, setGuestRows] = useState<GuestRow[]>([]);
@@ -175,6 +176,7 @@ export default function PayrollClient() {
   };
 
   const handleChange = (id: string, field: keyof PayrollRow, value: string) => {
+    setHasChanges(true);
     setRows(prev => prev.map(r => {
       if (r.id !== id) return r;
       const updated = { ...r, [field]: value };
@@ -195,6 +197,7 @@ export default function PayrollClient() {
         observations: r.observations || "",
       })));
       setSavedAt(new Date().toLocaleTimeString("pt-BR"));
+      setHasChanges(false);
     } catch {
       setErrorModal({ isOpen: true, title: "Erro ao salvar", message: "Ocorreu um erro ao salvar o fechamento. Tente novamente." });
     } finally {
@@ -236,6 +239,14 @@ export default function PayrollClient() {
       window.print();
     }, 100);
   };
+
+  useEffect(() => {
+    if (!hasChanges) return;
+    const timer = setTimeout(() => {
+      handleSave();
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [hasChanges, rows]);
 
   const grupos = [
     { key: "FALCON_SERVICE", rows: rows.filter(r => r.registrationCompany === "FALCON_SERVICE") },
@@ -354,8 +365,9 @@ export default function PayrollClient() {
               </div>
             </div>
           )}
-          <table className="w-full text-left border-collapse print:text-[10px]">
-            <thead>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse print:text-[10px]">
+              <thead>
               <tr className="bg-gray-50 border-b border-gray-200 print:border-black print:bg-gray-100">
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[160px]">Funcionário</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[140px]">Dados de Pagamento</th>
@@ -551,6 +563,7 @@ export default function PayrollClient() {
           </table>
         </div>
       </div>
+    </div>
     );
   };
 
@@ -775,33 +788,7 @@ export default function PayrollClient() {
           )}
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap shrink-0">
-          {/* Botão Avanço */}
-          <button
-            onClick={() => setGuestModalOpen(true)}
-            disabled={isLoading}
-            title="Adicionar colaborador avulso (sem cadastro) à folha"
-            className="flex items-center gap-2 border border-dashed border-amber-400 bg-amber-50 hover:bg-amber-100 text-amber-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 shrink-0 whitespace-nowrap"
-          >
-            <UserPlus className="h-4 w-4 shrink-0" />
-            Avulso
-          </button>
-          {savedAt && (
-            <span className="text-xs text-green-600 flex items-center gap-1 whitespace-nowrap shrink-0">
-              <Check className="h-3.5 w-3.5 shrink-0" /> Salvo às {savedAt}
-            </span>
-          )}
-          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer whitespace-nowrap shrink-0">
-            <input type="checkbox" checked={anonymousPrint} onChange={e => setAnonymousPrint(e.target.checked)} className="w-4 h-4 text-blue-600 rounded" />
-            Ocultar Nomes
-          </label>
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors shrink-0 whitespace-nowrap"
-          >
-            <Printer className="h-4 w-4 shrink-0" /> Imprimir
-          </button>
-          {/* Sincroniza funcionários cadastrados depois da prévia sem perder dados existentes */}
+        <div className="flex items-center gap-3 flex-nowrap shrink-0">
           <button
             onClick={handleGenerate}
             disabled={isGenerating || isLoading || !canEdit}
@@ -811,16 +798,44 @@ export default function PayrollClient() {
             {isGenerating ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <RefreshCw className="h-4 w-4 shrink-0" />}
             {isGenerating ? "Sincronizando..." : "Sincronizar"}
           </button>
-          {rows.length > 0 && (
-            <button
-              onClick={handleSave}
-              disabled={isSaving || isLoading || !canEdit}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm disabled:opacity-50 shrink-0 whitespace-nowrap"
-            >
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <Save className="h-4 w-4 shrink-0" />}
-              {isSaving ? "Salvando..." : "Salvar Alterações"}
-            </button>
-          )}
+          
+          <button
+            onClick={() => setGuestModalOpen(true)}
+            disabled={isLoading}
+            title="Adicionar colaborador avulso (sem cadastro) à folha"
+            className="flex items-center gap-2 border border-dashed border-amber-400 bg-amber-50 hover:bg-amber-100 text-amber-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 shrink-0 whitespace-nowrap"
+          >
+            <UserPlus className="h-4 w-4 shrink-0" />
+            Avulso
+          </button>
+
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer whitespace-nowrap shrink-0 ml-2">
+            <input type="checkbox" checked={anonymousPrint} onChange={e => setAnonymousPrint(e.target.checked)} className="w-4 h-4 text-blue-600 rounded" />
+            Ocultar Nomes
+          </label>
+
+          <div className="flex items-center gap-1.5 px-2 py-2 rounded-lg justify-end shrink-0 whitespace-nowrap">
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 text-blue-500 animate-spin shrink-0" />
+                <span className="text-sm text-blue-600 font-medium">Salvando...</span>
+              </>
+            ) : savedAt ? (
+              <>
+                <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                <span className="text-sm text-gray-400">Salvo às {savedAt}</span>
+              </>
+            ) : (
+              <span className="text-sm text-gray-400">Salvo</span>
+            )}
+          </div>
+
+          <button
+            onClick={handlePrint}
+            className="flex items-center gap-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors shrink-0 whitespace-nowrap"
+          >
+            <Printer className="h-4 w-4 shrink-0" /> Imprimir
+          </button>
         </div>
 
       </div>

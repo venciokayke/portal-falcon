@@ -9,10 +9,8 @@ export async function saveAccountingReportEntries(
   entries: {
     employeeId: string;
     atestado: string;
-    faltasFrom: string;
-    faltasTo: string;
-    descontosFrom: string;
-    descontosTo: string;
+    faltas: string;
+    descontos: string;
     intervalarValue: string;
   }[]
 ) {
@@ -27,10 +25,8 @@ export async function saveAccountingReportEntries(
       },
       update: {
         atestado: entry.atestado,
-        faltasFrom: entry.faltasFrom,
-        faltasTo: entry.faltasTo,
-        descontosFrom: entry.descontosFrom,
-        descontosTo: entry.descontosTo,
+        faltas: entry.faltas,
+        descontos: entry.descontos,
         intervalarValue: entry.intervalarValue,
       },
       create: {
@@ -38,10 +34,8 @@ export async function saveAccountingReportEntries(
         month,
         year,
         atestado: entry.atestado,
-        faltasFrom: entry.faltasFrom,
-        faltasTo: entry.faltasTo,
-        descontosFrom: entry.descontosFrom,
-        descontosTo: entry.descontosTo,
+        faltas: entry.faltas,
+        descontos: entry.descontos,
         intervalarValue: entry.intervalarValue,
       },
     });

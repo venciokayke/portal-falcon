@@ -187,6 +187,7 @@ model OvertimeEntry {
   year         Int
 
   hours        Decimal  @db.Decimal(10, 2) @default(0)
+  extraValue   Decimal  @db.Decimal(10, 2) @default(0)
   totalValue   Decimal  @db.Decimal(10, 2) @default(0)
   observations String?  @db.Text
   status       String   @default("PENDENTE") // PENDENTE | PAGO
@@ -267,10 +268,8 @@ model AccountingReportEntry {
   year            Int
   
   atestado        String?
-  faltasFrom      String?
-  faltasTo        String?
-  descontosFrom   String?
-  descontosTo     String?
+  faltas          String?
+  descontos       String?
   intervalarValue String?
 
   employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)

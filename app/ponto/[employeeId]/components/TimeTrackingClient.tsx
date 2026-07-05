@@ -22,13 +22,15 @@ export default function TimeTrackingClient({
   workLocations,
   initialMonth,
   initialYear,
-  initialMonthParity
+  initialMonthParity,
+  globalRates
 }: { 
   employee: any;
   workLocations: any[];
   initialMonth: number;
   initialYear: number;
-  initialMonthParity: string;
+  initialMonthParity: "PAR" | "IMPAR" | "NONE";
+  globalRates: { extraHourRate: number; workedHourRate: number };
 }) {
   const currentDate = new Date();
 
@@ -179,7 +181,10 @@ export default function TimeTrackingClient({
   if (isPJFixo) {
     taxaHora = 0;
   } else {
-    taxaHora = Number(employee.hourlyRate) || 0;
+    taxaHora = Number(employee.hourlyRate);
+    if (!taxaHora) {
+      taxaHora = isCLT ? globalRates.extraHourRate : globalRates.workedHourRate;
+    }
   }
 
   // 2. Lógica de 'HORAS PREVISTAS' (Carga Horária Base)
@@ -660,6 +665,27 @@ export default function TimeTrackingClient({
             </div>
           </div>
 
+          {/* WEB Financial Footer */}
+          <div className="bg-emerald-50 border-t border-emerald-200 p-4 flex flex-col md:flex-row items-center justify-between text-emerald-900 rounded-b-xl shadow-sm">
+             <div className="flex flex-col text-center md:text-left">
+               <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
+                 {isPJFixo ? 'Total a Receber (Fixo)' : 'Cálculo do Valor a Receber'}
+               </span>
+               <span className="text-sm font-medium mt-1 text-emerald-800/80">
+                 {!isPJFixo ? (
+                   <>
+                     Saldo Efetivo ({Math.round(Math.max(0, saldoHoras))}h) <span className="mx-1">×</span> Taxa (R$ {taxaHora.toFixed(2)})
+                   </>
+                 ) : (
+                   'Valor fechado conforme contrato'
+                 )}
+               </span>
+             </div>
+             <div className="text-3xl font-black mt-3 md:mt-0 text-emerald-600">
+               R$ {valorTotal.toFixed(2)}
+             </div>
+          </div>
+
         </div>
 
         {/* Layout Específico para Impressão */}
@@ -761,21 +787,33 @@ export default function TimeTrackingClient({
               <thead className="bg-blue-200 border-b border-black text-black">
                 <tr>
                   <th className="px-2 py-1 font-bold text-center" colSpan={2}>
-                    {isPJFixo ? 'FECHAMENTO (CONTRATO FIXO)' : 'CÁLCULO HORAS EXTRAS'}
+                    {isPJFixo ? 'FECHAMENTO (CONTRATO FIXO)' : 'CÁLCULO A RECEBER'}
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-black">
-                {!isPJFixo && (
+                {!isPJFixo ? (
                   <tr>
-                    <td className="px-2 py-1 font-semibold border-r border-black w-2/3">VALOR P/H (R$)</td>
-                    <td className="px-2 py-1 text-center font-bold">{taxaHora.toFixed(2)}</td>
+                    <td className="px-2 py-3 text-center" colSpan={2}>
+                      <div className="flex flex-col items-center justify-center gap-1">
+                        <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Demonstrativo (Saldo × Taxa)</div>
+                        <div className="flex items-center gap-3 font-bold text-sm mt-1">
+                          <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{Math.round(Math.max(0, saldoHoras))}h</span>
+                          <span className="text-gray-400 text-[10px]">X</span>
+                          <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">R$ {taxaHora.toFixed(2)}</span>
+                        </div>
+                        <div className="text-xl font-black text-emerald-600 mt-2 border-t border-gray-100 w-full pt-2">
+                          = R$ {valorTotal.toFixed(2)}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr>
+                    <td className="px-2 py-2 font-semibold border-r border-black w-2/3 bg-gray-100 align-middle text-sm">TOTAL FIXO (R$)</td>
+                    <td className="px-2 py-2 text-center font-black bg-gray-100 text-emerald-600 text-lg align-middle">R$ {valorTotal.toFixed(2)}</td>
                   </tr>
                 )}
-                <tr>
-                  <td className="px-2 py-1 font-semibold border-r border-black w-2/3 bg-gray-100">TOTAL (R$)</td>
-                  <td className="px-2 py-1 text-center font-bold bg-gray-100">{valorTotal.toFixed(2)}</td>
-                </tr>
               </tbody>
             </table>
           </div>

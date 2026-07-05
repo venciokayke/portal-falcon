@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Printer, Plus, Calendar, MessageSquare, Loader2, Save, Check } from "lucide-react";
+import { Calendar, Printer, Loader2, Save, Plus, MessageSquare, Check, CheckCircle } from "lucide-react";
 import { logActivity } from "@/actions/activity-log";
 import { getBenefitsReportEntries, getMonthlyReportConfig, saveBenefitsReportEntries, saveMonthlyReportConfig } from "@/actions/benefits-report-db";
 
@@ -48,6 +48,7 @@ export default function BenefitsReportClient({
     return fallback;
   };
 
+  const [hasChanges, setHasChanges] = useState(false);
   const [vaRate, setVaRateState] = useState(() => getStoredRate("beneficios_vaRate", 26.00));
   const [vtRate, setVtRateState] = useState(() => getStoredRate("beneficios_vtRate", 8.60));
   const [data, setData] = useState<EmployeeBenefit[]>(getStoredData);
@@ -121,12 +122,22 @@ export default function BenefitsReportClient({
       }
     } finally {
       setIsLoading(false);
+      setHasChanges(false);
     }
   }, [initialData, availableExceptions]);
 
   useEffect(() => {
     loadData(selectedMonth, selectedYear);
   }, [selectedMonth, selectedYear, loadData]);
+
+  // Debounced auto-save
+  useEffect(() => {
+    if (!hasChanges) return;
+    const timer = setTimeout(() => {
+      handleSave();
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [hasChanges, data, selectedMonth, selectedYear]);
 
   // Persiste os dados editados no sessionStorage
   useEffect(() => {
@@ -146,6 +157,7 @@ export default function BenefitsReportClient({
   };
 
   const handleUpdate = (id: string, field: keyof EmployeeBenefit, value: string) => {
+    setHasChanges(true);
     setData((prev) =>
       prev.map((emp) => {
         if (emp.id !== id) return emp;
@@ -159,6 +171,7 @@ export default function BenefitsReportClient({
 
   // Recalculate all values when a global rate changes
   const handleRateChange = (type: "va" | "vt", newRate: number) => {
+    setHasChanges(true);
     if (type === "va") {
       setVaRate(newRate);
       setData(prev => prev.map(emp => ({
@@ -183,12 +196,14 @@ export default function BenefitsReportClient({
         vaValue: emp.vaValue,
         vtUnid: emp.vtUnid,
         vtValue: emp.vtValue,
+        observations: emp.observations
       }));
       await Promise.all([
         saveBenefitsReportEntries(selectedMonth, selectedYear, entriesToSave),
         saveMonthlyReportConfig(selectedMonth, selectedYear, vaRate, vtRate)
       ]);
       setSavedAt(new Date().toLocaleTimeString("pt-BR"));
+      setHasChanges(false);
     } catch (error) {
       console.error("Erro ao salvar:", error);
       alert("Erro ao salvar os dados.");
@@ -227,6 +242,7 @@ export default function BenefitsReportClient({
       }
     ]);
     setSelectedException("");
+    setHasChanges(true);
   };
 
   // Calculations for the header
@@ -357,19 +373,21 @@ export default function BenefitsReportClient({
             </button>
           </div>
           <div className="flex items-center gap-2">
-            {savedAt && (
-              <span className="text-xs text-green-600 flex items-center gap-1 mr-2">
-                <Check className="h-3.5 w-3.5" /> Salvo às {savedAt}
-              </span>
-            )}
-            <button
-              onClick={handleSave}
-              disabled={isSaving || isLoading}
-              className="flex items-center gap-2 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm disabled:opacity-50"
-            >
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Salvar
-            </button>
+            <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg w-32 justify-end">
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+                  <span className="text-sm text-blue-600 font-medium">Salvando...</span>
+                </>
+              ) : savedAt ? (
+                <>
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <span className="text-sm text-gray-400">Salvo às {savedAt}</span>
+                </>
+              ) : (
+                <span className="text-sm text-gray-400">Salvo</span>
+              )}
+            </div>
             <button
               onClick={handlePrint}
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"

@@ -1,6 +1,6 @@
 "use client";
 
-import { Printer, Calendar, Loader2, Save, Check } from "lucide-react";
+import { Printer, Calendar, Loader2, CheckCircle } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { logActivity } from "@/actions/activity-log";
 import { getAccountingReportData } from "@/actions/accounting-report";
@@ -18,10 +18,8 @@ interface EmployeeData {
 
 interface RowState {
   atestado: string;
-  faltasFrom: string;
-  faltasTo: string;
-  descontosFrom: string;
-  descontosTo: string;
+  faltas: string;
+  descontos: string;
   intervalarValue: string;
 }
 
@@ -38,12 +36,13 @@ export default function AccountingReportClient({ initialData, initialMonth, init
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [hasChanges, setHasChanges] = useState(false);
 
   // Estado local de todos os inputs editáveis, keyed by employeeId
   const [rowStates, setRowStates] = useState<Record<string, RowState>>(() => {
     const init: Record<string, RowState> = {};
     initialData.forEach(emp => {
-      init[emp.id] = { atestado: "NÃO", faltasFrom: "", faltasTo: "", descontosFrom: "", descontosTo: "", intervalarValue: emp.intervalarValue };
+      init[emp.id] = { atestado: "NÃO", faltas: "", descontos: "", intervalarValue: emp.intervalarValue };
     });
     return init;
   });
@@ -65,14 +64,12 @@ export default function AccountingReportClient({ initialData, initialMonth, init
           if (dbEntry) {
             next[emp.id] = {
               atestado: dbEntry.atestado || "NÃO",
-              faltasFrom: dbEntry.faltasFrom || "",
-              faltasTo: dbEntry.faltasTo || "",
-              descontosFrom: dbEntry.descontosFrom || "",
-              descontosTo: dbEntry.descontosTo || "",
+              faltas: prev[emp.id]?.faltas || dbEntry.faltas || "",
+              descontos: prev[emp.id]?.descontos || dbEntry.descontos || "",
               intervalarValue: dbEntry.intervalarValue || emp.intervalarValue,
             };
           } else {
-            next[emp.id] = prev[emp.id] ?? { atestado: "NÃO", faltasFrom: "", faltasTo: "", descontosFrom: "", descontosTo: "", intervalarValue: emp.intervalarValue };
+            next[emp.id] = prev[emp.id] ?? { atestado: "NÃO", faltas: "", descontos: "", intervalarValue: emp.intervalarValue };
           }
         });
         return next;
@@ -87,8 +84,15 @@ export default function AccountingReportClient({ initialData, initialMonth, init
     loadData(month, year);
   }, [month, year, loadData]);
 
-  const updateRow = (id: string, field: keyof RowState, value: string) => {
-    setRowStates(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
+  const updateRow = (employeeId: string, field: keyof RowState, value: string) => {
+    setHasChanges(true);
+    setRowStates(prev => ({
+      ...prev,
+      [employeeId]: {
+        ...prev[employeeId],
+        [field]: value
+      }
+    }));
   };
 
   const handleSave = async () => {
@@ -103,6 +107,7 @@ export default function AccountingReportClient({ initialData, initialMonth, init
       });
       await saveAccountingReportEntries(month, year, entriesToSave);
       setSavedAt(new Date().toLocaleTimeString("pt-BR"));
+      setHasChanges(false);
     } catch (error) {
       console.error("Erro ao salvar:", error);
       alert("Erro ao salvar os dados.");
@@ -110,6 +115,14 @@ export default function AccountingReportClient({ initialData, initialMonth, init
       setIsSaving(false);
     }
   };
+
+  useEffect(() => {
+    if (!hasChanges) return;
+    const timer = setTimeout(() => {
+      handleSave();
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [hasChanges, rowStates, month, year]);
 
   const handlePrint = () => {
     logActivity("IMPRESSAO_RELATORIO_CONTABILIDADE", `Mês/Ano: ${month + 1}/${year}`);
@@ -153,19 +166,21 @@ export default function AccountingReportClient({ initialData, initialMonth, init
           {isLoading && <Loader2 className="h-4 w-4 animate-spin text-blue-500" />}
         </div>
         <div className="flex items-center gap-2">
-          {savedAt && (
-            <span className="text-xs text-green-600 flex items-center gap-1 mr-2">
-              <Check className="h-3.5 w-3.5" /> Salvo às {savedAt}
-            </span>
-          )}
-          <button
-            onClick={handleSave}
-            disabled={isSaving || isLoading}
-            className="flex items-center gap-2 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm disabled:opacity-50"
-          >
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salvar
-          </button>
+          <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg w-32 justify-end">
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+                <span className="text-sm text-blue-600 font-medium">Salvando...</span>
+              </>
+            ) : savedAt ? (
+              <>
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <span className="text-sm text-gray-400">Salvo às {savedAt}</span>
+              </>
+            ) : (
+              <span className="text-sm text-gray-400">Salvo</span>
+            )}
+          </div>
           <button
             onClick={handlePrint}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
@@ -197,7 +212,7 @@ export default function AccountingReportClient({ initialData, initialMonth, init
           </thead>
           <tbody className="divide-y divide-gray-200 border-b border-gray-300">
             {data.map((emp) => {
-              const row = rowStates[emp.id] ?? { atestado: "NÃO", faltasFrom: "", faltasTo: "", descontosFrom: "", descontosTo: "", intervalarValue: emp.intervalarValue };
+              const row = rowStates[emp.id] ?? { atestado: "NÃO", faltas: "", descontos: "", intervalarValue: emp.intervalarValue };
               return (
                 <tr key={emp.id} className="hover:bg-gray-50 print:hover:bg-transparent">
                   <td className="px-4 py-2 border-r border-gray-200 font-medium text-gray-900 truncate max-w-[200px]" title={emp.name}>
@@ -240,38 +255,22 @@ export default function AccountingReportClient({ initialData, initialMonth, init
                     )}
                   </td>
                   <td className="px-2 py-1 border-r border-gray-200 align-middle">
-                    <div className="flex items-center justify-center gap-1 w-full">
-                      <input
-                        type="date"
-                        value={row.faltasFrom}
-                        onChange={e => updateRow(emp.id, "faltasFrom", e.target.value)}
-                        className="w-[95px] text-xs bg-transparent border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0 text-center"
-                      />
-                      <span className="text-gray-500 font-medium text-xs print:text-black">a</span>
-                      <input
-                        type="date"
-                        value={row.faltasTo}
-                        onChange={e => updateRow(emp.id, "faltasTo", e.target.value)}
-                        className="w-[95px] text-xs bg-transparent border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0 text-center"
-                      />
-                    </div>
+                    <input
+                      type="text"
+                      value={row.faltas}
+                      onChange={e => updateRow(emp.id, "faltas", e.target.value)}
+                      placeholder="Ex: 03 e 04, ou 05/07"
+                      className="w-full text-xs bg-transparent border border-gray-300 rounded px-2 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0 text-center"
+                    />
                   </td>
                   <td className="px-2 py-1 align-middle">
-                    <div className="flex items-center justify-center gap-1 w-full">
-                      <input
-                        type="date"
-                        value={row.descontosFrom}
-                        onChange={e => updateRow(emp.id, "descontosFrom", e.target.value)}
-                        className="w-[95px] text-xs bg-transparent border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0 text-center"
-                      />
-                      <span className="text-gray-500 font-medium text-xs print:text-black">a</span>
-                      <input
-                        type="date"
-                        value={row.descontosTo}
-                        onChange={e => updateRow(emp.id, "descontosTo", e.target.value)}
-                        className="w-[95px] text-xs bg-transparent border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0 text-center"
-                      />
-                    </div>
+                    <input
+                      type="text"
+                      value={row.descontos}
+                      onChange={e => updateRow(emp.id, "descontos", e.target.value)}
+                      placeholder="Ex: Dias 10, 11 e 12"
+                      className="w-full text-xs bg-transparent border border-gray-300 rounded px-2 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none print:appearance-none print:border-none print:p-0 print:focus:ring-0 text-center"
+                    />
                   </td>
                 </tr>
               );
