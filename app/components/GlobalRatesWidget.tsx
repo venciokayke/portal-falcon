@@ -7,9 +7,11 @@ import { saveGlobalRates } from "@/actions/config";
 export default function GlobalRatesWidget({
   initialExtraHourRate,
   initialWorkedHourRate,
+  canEdit,
 }: {
   initialExtraHourRate: number;
   initialWorkedHourRate: number;
+  canEdit: boolean;
 }) {
   const [extraHourRate, setExtraHourRate] = useState(initialExtraHourRate);
   const [workedHourRate, setWorkedHourRate] = useState(initialWorkedHourRate);
@@ -46,6 +48,7 @@ export default function GlobalRatesWidget({
             </span>
             <input
               type="number"
+              disabled={!canEdit}
               step="0.01"
               min="0"
               value={extraHourRate}
@@ -61,6 +64,7 @@ export default function GlobalRatesWidget({
             </span>
             <input
               type="number"
+              disabled={!canEdit}
               step="0.01"
               min="0"
               value={workedHourRate}
@@ -74,7 +78,7 @@ export default function GlobalRatesWidget({
         <div className="flex justify-end">
           <button
             onClick={handleSave}
-            disabled={isPending}
+            disabled={isPending || !canEdit}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-60 ${
               saved
                 ? "bg-green-500 text-white"

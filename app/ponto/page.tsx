@@ -1,3 +1,4 @@
+import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import PontoSelectorClient from "./components/PontoSelectorClient";
 
@@ -8,6 +9,7 @@ export default async function PontoSelectorPage({
 }: {
   searchParams: Promise<{ month?: string; year?: string }>;
 }) {
+  await requirePermission("MANAGE_SHIFTS");
   const resolvedSearchParams = await searchParams;
   const currentDate = new Date();
   const initialMonth = resolvedSearchParams.month ? Number(resolvedSearchParams.month) : currentDate.getMonth() + 1;

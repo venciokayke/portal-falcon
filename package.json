@@ -7,6 +7,8 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start",
+    "test": "node --test scripts/test-security.cjs scripts/test-jornada.cjs && node scripts/test-receipt-generator.js",
+    "test:db": "node scripts/test-db.cjs",
     "lint": "next lint"
   },
   "keywords": [],

@@ -1,3 +1,5 @@
+import { requireUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { calculatePayroll } from "@/utils/calculatePayroll";
 import { getDaysInMonth } from "date-fns";
@@ -30,6 +32,19 @@ function getNthBusinessDay(year: number, month: number, n: number): Date {
 }
 
 export default async function DashboardPage() {
+  const currentUser = await requireUser();
+  if (currentUser.role !== "ADMIN" && !currentUser.permissions.includes("VIEW_DASHBOARD")) {
+    const destinations = [
+      ["MANAGE_EMPLOYEES", "/colaboradores"],
+      ["MANAGE_SHIFTS", "/ponto"],
+      ["MANAGE_PAYROLL", "/folha"],
+      ["VIEW_REPORTS", "/relatorio-contabilidade"],
+      ["VIEW_AUDIT", "/configuracoes/auditoria"],
+    ];
+    const destination = destinations.find(([permission]) => currentUser.permissions.includes(permission));
+    if (destination) redirect(destination[1]);
+    return <p className="p-6">Sua conta ainda não possui acesso aos módulos. Solicite as permissões ao administrador.</p>;
+  }
   const currentDate = new Date();
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
@@ -46,7 +61,8 @@ export default async function DashboardPage() {
         shifts: {
           where: { referenceDate: { gte: startOfMonth, lte: endOfMonth } }
         },
-        absenceExemptions: true,
+        absenceExemptions: { select: { startDate: true, endDate: true } },
+        monthParities: { where: { month: currentMonth, year: currentYear } },
       }
     }),
     // Turnos com entrada preenchida e saída nula no mês atual
@@ -60,7 +76,7 @@ export default async function DashboardPage() {
     }),
     // Folhas não pagas do mês atual
     prisma.monthlyPayroll.findMany({
-      where: { month: currentMonth + 1, year: currentYear, isPaid: false },
+      where: { month: currentMonth, year: currentYear, isPaid: false },
       include: { employee: { select: { name: true } } }
     }),
     getGlobalRates(),
@@ -73,10 +89,10 @@ export default async function DashboardPage() {
 
   activeEmployees.forEach(emp => {
     if (emp.contractType !== 'PJ_FIXO') {
-      const result = calculatePayroll(emp, emp.shifts, currentMonth, currentYear, globalRates.extraHourRate);
+      const result = calculatePayroll({ ...emp, startParity: emp.monthParities[0]?.startParity ?? emp.startParity }, emp.shifts, currentMonth, currentYear, emp.contractType === "CLT" ? globalRates.extraHourRate : globalRates.workedHourRate);
       totalAbsences += result.currentMonthAbsences;
       totalOvertimeHours += result.extraHoursBalance;
-      projectedFinancial += result.extraValue + result.suggestedVA + result.suggestedVT;
+      projectedFinancial += result.extraValue + result.intervalValue + result.suggestedVA + result.suggestedVT;
     }
   });
 
@@ -304,6 +320,7 @@ export default async function DashboardPage() {
 
       {/* ── Taxas Globais ── */}
       <GlobalRatesWidget
+        canEdit={currentUser.role === "ADMIN" || currentUser.role === "MANAGER"}
         initialExtraHourRate={globalRates.extraHourRate}
         initialWorkedHourRate={globalRates.workedHourRate}
       />

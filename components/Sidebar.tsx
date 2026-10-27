@@ -40,6 +40,10 @@ export default function Sidebar() {
   const mainLinks = [
     ...(hasPerm("VIEW_DASHBOARD") ? [{ href: "/", label: "Dashboard", icon: LayoutDashboard }] : []),
     ...(hasPerm("MANAGE_EMPLOYEES") ? [{ href: "/colaboradores", label: "Colaboradores", icon: Users }] : []),
+
+  ];
+
+  const journeyLinks = [
     ...(hasPerm("MANAGE_SHIFTS") ? [{ href: "/ponto", label: "Lançamento de Ponto", icon: Clock }, { href: "/horas-extras", label: "Horas Extras", icon: Timer }] : []),
     ...(hasPerm("MANAGE_PAYROLL") ? [{ href: "/folha", label: "Fechamento de Folha", icon: Wallet }] : []),
   ];
@@ -110,6 +114,15 @@ export default function Sidebar() {
         <div className="space-y-1">
           {!isCollapsed && <p className="text-[10px] uppercase tracking-widest text-gray-500 font-bold px-4 mb-2">Principal</p>}
           {mainLinks.map(renderLink)}
+          {journeyLinks.length > 0 && (
+            <details open={pathname.startsWith('/ponto') || pathname.startsWith('/folha') || pathname.startsWith('/horas-extras') || undefined} className="pt-2">
+              <summary title="Jornada e pagamentos" className="flex items-center gap-3 px-4 py-2.5 cursor-pointer text-gray-300 rounded-xl hover:bg-gray-800 list-none">
+                <Wallet className="w-5 h-5 shrink-0" />
+                {!isCollapsed && <span className="text-sm font-medium">Jornada e pagamentos</span>}
+              </summary>
+              <div className={isCollapsed ? 'space-y-1 mt-1' : 'space-y-1 mt-1 ml-3 border-l border-gray-700 pl-2'}>{journeyLinks.map(renderLink)}</div>
+            </details>
+          )}
         </div>
 
         {/* Relatórios */}

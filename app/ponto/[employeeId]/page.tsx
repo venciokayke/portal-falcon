@@ -1,3 +1,4 @@
+import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import TimeTrackingClient from "./components/TimeTrackingClient";
@@ -12,6 +13,7 @@ export default async function PontoPage({
   params: Promise<{ employeeId: string }>;
   searchParams: Promise<{ month?: string; year?: string }>;
 }) {
+  await requirePermission("MANAGE_SHIFTS");
   const resolvedParams = await params;
   const resolvedSearchParams = await searchParams;
 

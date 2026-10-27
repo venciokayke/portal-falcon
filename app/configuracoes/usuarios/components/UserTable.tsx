@@ -46,7 +46,7 @@ export default function UserTable({ users }: { users: any[] }) {
         setAlertModal({
           isOpen: true,
           title: "Senha Redefinida",
-          message: res.message || "Senha redefinida para Mudar@123",
+          message: res.message,
           type: "success",
         });
       } catch (err: any) {
@@ -74,7 +74,7 @@ export default function UserTable({ users }: { users: any[] }) {
         onClose={() => setResetConfirmModal(prev => ({ ...prev, isOpen: false }))}
         onConfirm={handleConfirmReset}
         title="Resetar Senha do Usuário"
-        message={`Deseja realmente redefinir a senha do usuário "${resetConfirmModal.userName}" para a senha padrão "Mudar@123"?\nO usuário precisará alterar a senha no próximo acesso.`}
+        message={`Deseja gerar uma senha provisória aleatória para "${resetConfirmModal.userName}"?\nEla será exibida uma vez e deverá ser alterada no próximo acesso.`}
         confirmText="Resetar"
       />
       <AlertModal
@@ -114,7 +114,7 @@ export default function UserTable({ users }: { users: any[] }) {
               </td>
               <td className="px-6 py-4 text-right">
                 <div className="flex items-center justify-end gap-2">
-                  {isAdmin && (
+                  {isAdmin && user.id !== (session?.user as { id?: string })?.id && (
                     <button
                       onClick={() => handleResetRequest(user.id, user.name)}
                       disabled={isPending}

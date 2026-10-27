@@ -1,10 +1,15 @@
 "use server";
 
+import { requirePermission } from "@/lib/auth";
+
+import { calculatePayroll } from "@/utils/calculatePayroll";
+
 import { prisma } from "@/lib/prisma";
 
 export async function getAccountingReportData(month: number, year: number) {
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
+  await requirePermission("VIEW_REPORTS");
+  const firstDay = new Date(Date.UTC(year, month, 1));
+  const lastDay = new Date(Date.UTC(year, month + 1, 1));
 
   const employees = await prisma.employee.findMany({
     where: {
@@ -16,7 +21,7 @@ export async function getAccountingReportData(month: number, year: number) {
         where: {
           referenceDate: {
             gte: firstDay,
-            lte: lastDay,
+            lt: lastDay,
           },
         },
       },
@@ -27,7 +32,7 @@ export async function getAccountingReportData(month: number, year: number) {
   return employees.map((emp) => {
     let intervalarValue = "NÃO";
     if (emp.receivesIntervalHour) {
-      intervalarValue = emp.shifts.length.toString();
+      intervalarValue = calculatePayroll(emp, emp.shifts, month, year).intervalHoursAdded.toString();
     }
     return {
       id: emp.id,

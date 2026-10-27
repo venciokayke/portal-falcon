@@ -1,9 +1,11 @@
+import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import BenefitsReportClient from "./components/BenefitsReportClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function RelatorioBeneficiosPage({ searchParams }: { searchParams: Promise<{ month?: string; year?: string }> }) {
+  await requirePermission("VIEW_REPORTS");
   const resolvedParams = await searchParams;
   const allEmployees = await prisma.employee.findMany({
     where: {

@@ -1,10 +1,12 @@
+import { requirePermission } from "@/lib/auth";
 import { Suspense } from "react";
 import ExtraHoursClient from "./components/ExtraHoursClient";
 import { Timer } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default function ExtraHoursPage() {
+export default async function ExtraHoursPage() {
+  await requirePermission("MANAGE_SHIFTS");
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-200 pb-4 print:hidden">

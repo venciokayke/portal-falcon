@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import SetupForm from "./components/SetupForm";
 import { Shield } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export default async function SetupPage() {
   const isFirstRun = await hasNoSystemUsers();
   if (!isFirstRun) {

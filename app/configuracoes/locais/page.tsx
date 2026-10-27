@@ -1,18 +1,10 @@
+import { requireRole } from "@/lib/auth";
 import { getWorkLocations } from "@/actions/workLocation";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { redirect } from "next/navigation";
 import WorkLocationClient from "./components/WorkLocationClient";
 
 export default async function WorkLocationsPage() {
-  const session = await getServerSession(authOptions);
-
-  if (!session) {
-    redirect("/login");
-  }
-
-  const role = (session.user as any).role;
-  const isAdminOrManager = role === "ADMIN" || role === "MANAGER";
+  await requireRole("ADMIN", "MANAGER");
+  const isAdminOrManager = true;
 
   // @ts-ignore
   const locations = await getWorkLocations(true); // get all, including archived

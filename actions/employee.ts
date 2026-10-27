@@ -1,9 +1,13 @@
 "use server";
 
+import { requirePermission } from "@/lib/auth";
+
 import { prisma } from "@/lib/prisma";
 import { ContractType, WorkSchedule, StartParity, RegistrationCompany } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/actions/activity-log";
+import { logicalDate } from "@/utils/shift-time";
+import { validateCertificate, MAX_CERTIFICATE_BYTES } from "@/lib/medical-certificate";
 
 // ── Utilitário: parse do FormData ─────────────────────────────────────────────
 function parseEmployeeForm(formData: FormData) {
@@ -93,6 +97,7 @@ function validateEmployeeData(data: ReturnType<typeof parseEmployeeForm>) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function addEmployee(formData: FormData) {
+  await requirePermission("MANAGE_EMPLOYEES");
   const data = parseEmployeeForm(formData);
   const errors = validateEmployeeData(data);
 
@@ -132,6 +137,7 @@ export async function addEmployee(formData: FormData) {
 }
 
 export async function archiveEmployee(id: string) {
+  await requirePermission("MANAGE_EMPLOYEES");
   await prisma.employee.update({
     where: { id },
     data: { isActive: false },
@@ -142,6 +148,7 @@ export async function archiveEmployee(id: string) {
 }
 
 export async function reactivateEmployee(id: string) {
+  await requirePermission("MANAGE_EMPLOYEES");
   await prisma.employee.update({
     where: { id },
     data: { isActive: true },
@@ -153,6 +160,7 @@ export async function reactivateEmployee(id: string) {
 }
 
 export async function updateEmployee(id: string, formData: FormData) {
+  await requirePermission("MANAGE_EMPLOYEES");
   const data = parseEmployeeForm(formData);
   const errors = validateEmployeeData(data);
 
@@ -192,6 +200,7 @@ export async function updateEmployee(id: string, formData: FormData) {
 }
 
 export async function updateEmployeeParity(id: string, startParity: StartParity) {
+  await requirePermission("MANAGE_EMPLOYEES");
   await prisma.employee.update({
     where: { id },
     data: { startParity },
@@ -203,8 +212,10 @@ export async function updateEmployeeParity(id: string, startParity: StartParity)
 }
 
 export async function getAbsenceExemptions(employeeId: string) {
+  await requirePermission("MANAGE_EMPLOYEES", "MANAGE_SHIFTS");
   const exemptions = await prisma.absenceExemption.findMany({
     where: { employeeId },
+    select: { id: true, employeeId: true, startDate: true, endDate: true, reason: true, attachmentName: true },
     orderBy: { startDate: "asc" }
   });
   return exemptions.map(ex => ({
@@ -213,18 +224,35 @@ export async function getAbsenceExemptions(employeeId: string) {
     startDate: ex.startDate.toISOString(),
     endDate: ex.endDate.toISOString(),
     reason: ex.reason,
+    attachmentName: ex.attachmentName,
   }));
 }
 
-export async function addAbsenceExemption(employeeId: string, startDateStr: string, endDateStr: string, reason: string) {
+export async function addAbsenceExemption(employeeId: string, startDateStr: string, endDateStr: string, reason: string, attachment?: FormData) {
+  const user = await requirePermission("MANAGE_EMPLOYEES", "MANAGE_SHIFTS");
+  const startDate = logicalDate(startDateStr);
+  const endDate = logicalDate(endDateStr);
+  if (endDate < startDate || !reason?.trim() || reason.length > 500) throw new Error("Informe um período válido e um motivo de até 500 caracteres.");
+  const file = attachment?.get('file');
+  if (file != null && !(file instanceof File)) throw new Error("Anexo inválido.");
+  let attachmentData: Uint8Array<ArrayBuffer> | undefined;
+  let attachmentName: string | undefined;
+  let attachmentMime: string | undefined;
+  if (file instanceof File) {
+    if (file.size > MAX_CERTIFICATE_BYTES) throw new Error("O atestado deve ter até 5 MB.");
+    attachmentData = new Uint8Array(await file.arrayBuffer());
+    attachmentName = validateCertificate(file.name, file.type, attachmentData);
+    attachmentMime = file.type;
+  }
   await prisma.absenceExemption.create({
     data: {
       employeeId,
-      startDate: new Date(startDateStr),
-      endDate: new Date(endDateStr),
-      reason,
+      startDate, endDate, reason: reason.trim(), attachmentData, attachmentName, attachmentMime,
+      uploadedById: user.id,
     }
   });
+  await logActivity("REGISTRAR_ABONO", `Funcionário: ${employeeId} | Período: ${startDateStr} a ${endDateStr} | Anexo: ${!!attachmentData}`);
+  revalidatePath(`/ponto/${employeeId}`);
   revalidatePath("/colaboradores");
   revalidatePath("/folha");
   revalidatePath("/horas-extras");
@@ -232,9 +260,12 @@ export async function addAbsenceExemption(employeeId: string, startDateStr: stri
 }
 
 export async function deleteAbsenceExemption(id: string) {
-  await prisma.absenceExemption.delete({
+  await requirePermission("MANAGE_EMPLOYEES", "MANAGE_SHIFTS");
+  const deleted = await prisma.absenceExemption.delete({
     where: { id }
   });
+  await logActivity("EXCLUIR_ABONO", `Abono: ${id}`);
+  revalidatePath(`/ponto/${deleted.employeeId}`);
   revalidatePath("/colaboradores");
   revalidatePath("/folha");
   revalidatePath("/horas-extras");

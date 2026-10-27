@@ -1,15 +1,15 @@
 "use server";
 
+import { requirePermission, requireRole } from "@/lib/auth";
+
 import { prisma } from "@/lib/prisma";
-import { calculatePayroll } from "@/utils/calculatePayroll";
-import { getGlobalRates } from "@/actions/config";
+import { calculateEmployeeMonth, syncCalculatedOvertime, requireDraft, validateAmounts } from "@/lib/payroll-calculation";
 import { revalidatePath } from "next/cache";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { logActivity } from "@/actions/activity-log";
 
 // Busca os registros do MonthlyPayroll para o mês/ano. Retorna [] se não gerados ainda.
 export async function getMonthlyPayrolls(month: number, year: number) {
+  await requirePermission("MANAGE_PAYROLL");
   const records = await prisma.monthlyPayroll.findMany({
     where: { 
       month, 
@@ -68,69 +68,28 @@ export async function getMonthlyPayrolls(month: number, year: number) {
 // Gera a prévia do mês: cria registros em MonthlyPayroll para todos os funcionários ativos
 // usando valores pré-calculados. Idempotente: não duplica se já existir.
 export async function generateMonthPreview(month: number, year: number) {
-  const startDate = new Date(Date.UTC(year, month, 1));
-  const nextMonth = month === 11 ? 0 : month + 1;
-  const nextYear = month === 11 ? year + 1 : year;
-  const endDate = new Date(Date.UTC(nextYear, nextMonth, 1));
-
-  const [employees, globalRates] = await Promise.all([
-    prisma.employee.findMany({
-      where: { isActive: true },
-      include: {
-        shifts: {
-          where: {
-            referenceDate: { gte: startDate, lt: endDate },
-          },
-        },
-        absenceExemptions: true,
-      },
-      orderBy: { name: "asc" },
-    }),
-    getGlobalRates(),
-  ]);
-
-  for (const emp of employees) {
-    const payroll = calculatePayroll(emp, emp.shifts, month, year, globalRates.extraHourRate);
-
-    let baseValue = 0;
-    if (emp.contractType === "PJ_FIXO") {
-      baseValue = Number(emp.baseSalary) || 0;
-    } else if (emp.contractType === "CLT") {
-      const rate = emp.hourlyRate ? Number(emp.hourlyRate) : globalRates.extraHourRate;
-      baseValue = rate * 220;
-    } else {
-      const rate = emp.hourlyRate ? Number(emp.hourlyRate) : globalRates.workedHourRate;
-      baseValue = rate * payroll.totalWorkedHours;
+  await requirePermission("MANAGE_PAYROLL");
+  await prisma.$transaction(async tx => {
+    const status = await tx.payrollStatus.findUnique({ where: { month_year: { month, year } } });
+    if (status && status.status !== 'EM_DIGITACAO') throw new Error('Reabra a competência antes de gerar a prévia.');
+    const employees = await tx.employee.findMany({ where: { isActive: true }, select: { id: true } });
+    for (const { id } of employees) {
+      const existing = await tx.monthlyPayroll.findUnique({ where: { employeeId_month_year: { employeeId: id, month, year } } });
+      if (existing?.isPaid) continue;
+      const { employee, result, rate } = await calculateEmployeeMonth(tx, id, month, year);
+      const fixed = employee.contractType === 'CLT' || employee.contractType === 'PJ_FIXO';
+      if (fixed && Number(employee.baseSalary) <= 0) throw new Error('Configure o salário-base de ' + employee.name);
+      const baseValue = fixed ? Number(employee.baseSalary) : Number((rate * result.totalWorkedHours).toFixed(2));
+      const vtValue = result.suggestedVT;
+      const total = Number((baseValue + vtValue + Number(existing?.extras ?? 0) - Number(existing?.discounts ?? 0)).toFixed(2));
+      validateAmounts(total);
+      await tx.monthlyPayroll.upsert({
+        where: { employeeId_month_year: { employeeId: id, month, year } }, update: { baseValue, vtValue, total },
+        create: { employeeId: id, month, year, baseValue, vtValue, extras: 0, discounts: 0, total: baseValue + vtValue },
+      });
+      await syncCalculatedOvertime(tx, id, month, year);
     }
-
-    const extras = payroll.extraValue || 0;
-    const vtValue = payroll.suggestedVT || 0;
-    const total = baseValue + extras + vtValue;
-
-    // upsert: cria se não existir, ignora se já existir
-    await prisma.monthlyPayroll.upsert({
-      where: {
-        employeeId_month_year: {
-          employeeId: emp.id,
-          month,
-          year,
-        },
-      },
-      update: {}, // Não sobrescreve edições manuais existentes
-      create: {
-        employeeId: emp.id,
-        month,
-        year,
-        baseValue,
-        extras,
-        vtValue,
-        discounts: 0,
-        total,
-        observations: "",
-        isPaid: false,
-      },
-    });
-  }
+  }, { isolationLevel: 'Serializable', timeout: 20000 });
 
   await logActivity("GERAR_PREVIA_FOLHA", `Prévia gerada para ${month}/${year}`);
   revalidatePath("/folha");
@@ -141,18 +100,15 @@ export async function saveMonthlyPayrollRow(
   id: string,
   data: { extras: number; discounts: number; observations: string; baseValue: number }
 ) {
-  const total = data.baseValue + data.extras - data.discounts;
-
-  await prisma.monthlyPayroll.update({
-    where: { id },
-    data: {
-      baseValue: data.baseValue,
-      extras: data.extras,
-      discounts: data.discounts,
-      total,
-      observations: data.observations,
-    },
-  });
+  await requirePermission("MANAGE_PAYROLL");
+  validateAmounts(data.baseValue, data.extras, data.discounts);
+  await prisma.$transaction(async tx => {
+    const saved = await tx.monthlyPayroll.findUniqueOrThrow({ where: { id } });
+    await requireDraft(tx, saved.month, saved.year);
+    const total = Number((data.baseValue + data.extras + Number(saved.vtValue) - data.discounts).toFixed(2));
+    validateAmounts(total);
+    await tx.monthlyPayroll.update({ where: { id, isPaid: false }, data: { baseValue: data.baseValue, extras: data.extras, discounts: data.discounts, observations: data.observations, total } });
+  }, { isolationLevel: 'Serializable' });
 
   revalidatePath("/folha");
 }
@@ -161,20 +117,17 @@ export async function saveMonthlyPayrollRow(
 export async function saveAllMonthlyPayrolls(
   rows: { id: string; baseValue: number; extras: number; vtValue: number; discounts: number; observations: string }[]
 ) {
-  for (const row of rows) {
-    const total = row.baseValue + row.extras + row.vtValue - row.discounts;
-    await prisma.monthlyPayroll.update({
-      where: { id: row.id },
-      data: {
-        baseValue: row.baseValue,
-        extras: row.extras,
-        vtValue: row.vtValue,
-        discounts: row.discounts,
-        total,
-        observations: row.observations,
-      },
-    });
-  }
+  await requirePermission("MANAGE_PAYROLL");
+  await prisma.$transaction(async tx => {
+    for (const row of rows) {
+      validateAmounts(row.baseValue, row.extras, row.vtValue, row.discounts);
+      const saved = await tx.monthlyPayroll.findUniqueOrThrow({ where: { id: row.id } });
+      await requireDraft(tx, saved.month, saved.year);
+      const total = Number((row.baseValue + row.extras + row.vtValue - row.discounts).toFixed(2));
+      validateAmounts(total);
+      await tx.monthlyPayroll.update({ where: { id: row.id, isPaid: false }, data: { baseValue: row.baseValue, extras: row.extras, vtValue: row.vtValue, discounts: row.discounts, total, observations: row.observations } });
+    }
+  }, { isolationLevel: 'Serializable' });
 
   await logActivity("SALVAR_FECHAMENTO_FOLHA", `Linhas alteradas: ${rows.length}`);
   revalidatePath("/folha");
@@ -182,12 +135,8 @@ export async function saveAllMonthlyPayrolls(
 
 // Marca/desmarca um registro como pago (com auditoria: quem aprovou e quando)
 export async function togglePaymentStatus(id: string, isPaid: boolean) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) throw new Error("Não autenticado.");
-
-  const approver = await prisma.systemUser.findFirst({
-    where: { username: (session.user as any).username },
-  });
+  const approver = await requireRole("ADMIN", "MANAGER");
+  if (typeof isPaid !== "boolean") throw new Error("Status inválido.");
 
   await prisma.monthlyPayroll.update({
     where: { id },

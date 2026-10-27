@@ -1,10 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useSession, signOut } from "next-auth/react";
 import { updateSystemUserPassword } from "@/actions/system-user";
 import { Key, X, Loader2, AlertTriangle } from "lucide-react";
 
 export default function PasswordChangeModal({ userId, userName }: { userId: string, userName: string }) {
+  const { data: session } = useSession();
+  const isSelf = (session?.user as { id?: string })?.id === userId;
+  const [currentPassword, setCurrentPassword] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -23,10 +27,12 @@ export default function PasswordChangeModal({ userId, userName }: { userId: stri
     }
 
     try {
-      await updateSystemUserPassword(userId, password);
+      await updateSystemUserPassword(userId, password, currentPassword);
+      if (isSelf) await signOut({ callbackUrl: "/login" });
       setIsOpen(false);
       setPassword("");
       setConfirmPassword("");
+      setCurrentPassword("");
     } catch (err: any) {
       setError(err.message || "Erro ao alterar senha.");
     } finally {
@@ -71,6 +77,14 @@ export default function PasswordChangeModal({ userId, userName }: { userId: stri
                 </div>
               )}
 
+              {isSelf && (
+                <label className="block text-sm font-semibold text-gray-700">
+                  Senha atual
+                  <input type="password" autoComplete="current-password" required value={currentPassword}
+                    onChange={e => setCurrentPassword(e.target.value)}
+                    className="mt-1 w-full px-4 py-2 border border-gray-300 rounded-lg" />
+                </label>
+              )}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Nova Senha</label>
                 <input

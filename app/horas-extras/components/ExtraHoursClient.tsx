@@ -45,6 +45,7 @@ type OvertimeRow = {
   hours: number | string;
   extraValue: number | string;
   totalValue: number;
+  intervalValue: number;
   observations: string;
   status: string;
   approvedBy?: string | null;
@@ -93,7 +94,7 @@ export default function ExtraHoursClient() {
   const { data: session } = useSession();
   const isAdminOrManager = (session?.user as any)?.role === "ADMIN" || (session?.user as any)?.role === "MANAGER";
 
-  const canEdit = isAdminOrManager || (sheetStatus.status === "EM_DIGITACAO");
+  const canEdit = sheetStatus.status === "EM_DIGITACAO";
 
   useEffect(() => { loadData(); }, [month, year]);
 
@@ -159,7 +160,7 @@ export default function ExtraHoursClient() {
         const h = parseFloat(updated.hours as string) || 0;
         const ev = parseFloat(updated.extraValue as string) || 0;
         const rate = Number(r.effectiveRate) || 0;
-        updated.totalValue = (h * rate) + ev;
+        updated.totalValue = (h * rate) + ev + (r.intervalValue || 0);
       }
 
       return updated;
@@ -169,13 +170,14 @@ export default function ExtraHoursClient() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await saveOvertimeRecords(rows.map(r => ({
+      await saveOvertimeRecords(rows.filter(r => r.status !== "PAGO").map(r => ({
         id: r.id,
         hours: parseFloat(r.hours as string) || 0,
         extraValue: parseFloat(r.extraValue as string) || 0,
         totalValue: Number(r.totalValue) || 0,
         observations: r.observations || "",
       })));
+      await loadData();
       setSavedAt(new Date().toLocaleTimeString("pt-BR"));
       setHasChanges(false);
     } catch {
@@ -346,6 +348,7 @@ export default function ExtraHoursClient() {
                   </td>
                   <td className="px-4 py-2 border-r border-gray-100 text-right font-bold text-gray-900 bg-slate-50/50">
                     R$ {r.totalValue.toFixed(2)}
+                    {r.intervalValue > 0 && <span className="block text-[10px] font-normal text-gray-500">Inclui R$ {r.intervalValue.toFixed(2)} de verba intervalar</span>}
                   </td>
                   <td className="px-2 py-1 border-r border-gray-100 align-middle">
                     <div className="print:hidden flex justify-center">
@@ -367,7 +370,7 @@ export default function ExtraHoursClient() {
                     {isAdminOrManager ? (
                       <button
                         onClick={() => handleToggleStatus(r.id, r.status)}
-                        disabled={statusTransition}
+                        disabled={statusTransition || hasChanges || isSaving}
                         className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all duration-200 disabled:opacity-50 ${r.status === "PAGO"
                           ? "bg-green-500 text-white border-transparent shadow-sm shadow-green-200 hover:bg-green-600"
                           : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50 hover:border-gray-400"
@@ -577,7 +580,7 @@ export default function ExtraHoursClient() {
           {rows.length > 0 && (
             <button
               onClick={handleGenerate}
-              disabled={isGenerating || isLoading || !canEdit}
+              disabled={isGenerating || isLoading || !canEdit || hasChanges || isSaving}
               title="Adiciona novos colaboradores cadastrados ao período atual sem perder dados existentes."
               className="flex items-center gap-2 border border-dashed border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 shrink-0 whitespace-nowrap"
             >

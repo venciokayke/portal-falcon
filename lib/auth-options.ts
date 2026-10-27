@@ -1,0 +1,79 @@
+import { type NextAuthOptions } from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
+import { prisma } from "@/lib/prisma";
+import bcrypt from "bcryptjs";
+
+export const authOptions: NextAuthOptions = {
+  providers: [
+    CredentialsProvider({
+      name: "Credenciais",
+      credentials: {
+        username: { label: "Usuário", type: "text", placeholder: "Usuário" },
+        password: { label: "Senha", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.username || !credentials?.password) return null;
+
+        const user = await prisma.systemUser.findUnique({
+          where: { username: credentials.username },
+        });
+
+        if (!user) return null;
+
+        const isValid = await bcrypt.compare(credentials.password, user.password);
+        if (!isValid) return null;
+
+        return {
+          id: user.id,
+          name: user.name,
+          username: user.username,
+          role: user.role,
+          mustChangePassword: user.mustChangePassword,
+          permissions: user.permissions,
+          authVersion: user.updatedAt.toISOString(),
+        };
+      },
+    }),
+  ],
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.authVersion = (user as any).authVersion;
+        token.role = (user as any).role;
+        token.username = (user as any).username;
+        token.mustChangePassword = (user as any).mustChangePassword;
+        token.permissions = (user as any).permissions;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      const currentUser = typeof token.id === "string" ? await prisma.systemUser.findUnique({
+        where: { id: token.id },
+        select: { updatedAt: true },
+      }) : null;
+      if (!currentUser || currentUser.updatedAt.toISOString() !== token.authVersion) {
+        session.user = undefined;
+        return session;
+      }
+      if (session.user) {
+        (session.user as any).id = token.id;
+        (session.user as any).authVersion = token.authVersion;
+        (session.user as any).role = token.role;
+        (session.user as any).username = token.username;
+        (session.user as any).mustChangePassword = token.mustChangePassword;
+        (session.user as any).permissions = token.permissions;
+      }
+      return session;
+    },
+  },
+  pages: {
+    signIn: "/login",
+  },
+  session: {
+    strategy: "jwt",
+    maxAge: 28800, // 8 horas
+  },
+  secret: process.env.NEXTAUTH_SECRET,
+};
+

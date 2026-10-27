@@ -1,5 +1,7 @@
 "use server";
 
+import { requirePermission } from "@/lib/auth";
+
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
@@ -14,6 +16,7 @@ export async function saveBenefitsReportEntries(
     vtValue: string;
   }[]
 ) {
+  await requirePermission("VIEW_REPORTS");
   for (const entry of entries) {
     await prisma.benefitsReportEntry.upsert({
       where: {
@@ -44,6 +47,7 @@ export async function saveBenefitsReportEntries(
 }
 
 export async function getBenefitsReportEntries(month: number, year: number) {
+  await requirePermission("VIEW_REPORTS");
   return await prisma.benefitsReportEntry.findMany({
     where: {
       month,
@@ -58,6 +62,7 @@ export async function saveMonthlyReportConfig(
   vaRate: number,
   vtRate: number
 ) {
+  await requirePermission("VIEW_REPORTS");
   await prisma.monthlyReportConfig.upsert({
     where: {
       month_year: {
@@ -80,6 +85,7 @@ export async function saveMonthlyReportConfig(
 }
 
 export async function getMonthlyReportConfig(month: number, year: number) {
+  await requirePermission("VIEW_REPORTS");
   const config = await prisma.monthlyReportConfig.findUnique({
     where: {
       month_year: {

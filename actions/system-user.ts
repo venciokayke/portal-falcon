@@ -3,20 +3,14 @@
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { Role } from "@prisma/client";
-import { logActivity } from "@/actions/activity-log";
+import { writeActivityLog } from "@/lib/activity-log";
 
-// Utilitário: retorna a sessão atual ou lança erro
-async function requireSession() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) throw new Error("Não autenticado.");
-  return session.user as { id: string; name: string; role: Role };
-}
+import { requireUser } from "@/lib/auth";
+import { randomBytes } from "node:crypto";
 
 export async function createSystemUser(formData: FormData) {
-  const currentUser = await requireSession();
+  const currentUser = await requireUser();
 
   // Apenas ADMIN pode criar usuários
   if (currentUser.role !== "ADMIN") {
@@ -29,8 +23,8 @@ export async function createSystemUser(formData: FormData) {
   const role = (formData.get("role") as Role) || Role.USER;
   const permissions = formData.getAll("permissions") as string[];
 
-  if (!name || !username || !password) {
-    throw new Error("Todos os campos são obrigatórios.");
+  if (!name || !username || !password || password.length < 6) {
+    throw new Error("Preencha os campos obrigatórios e use uma senha com pelo menos 6 caracteres.");
   }
 
   // Valida que o role fornecido é válido
@@ -46,15 +40,15 @@ export async function createSystemUser(formData: FormData) {
   const hashedPassword = await bcrypt.hash(password, 10);
 
   await prisma.systemUser.create({
-    data: { name, username, password: hashedPassword, role, permissions },
+    data: { name, username, password: hashedPassword, role, permissions, mustChangePassword: true },
   });
 
-  await logActivity("CRIAR_USUARIO_SISTEMA", `Username: ${username} | Role: ${role}`);
+  await writeActivityLog(currentUser.id, "CRIAR_USUARIO_SISTEMA", `Username: ${username} | Role: ${role}`);
   revalidatePath("/configuracoes/usuarios");
 }
 
 export async function updateSystemUser(id: string, formData: FormData) {
-  const currentUser = await requireSession();
+  const currentUser = await requireUser();
   if (currentUser.role !== "ADMIN") {
     throw new Error("Acesso negado. Apenas administradores podem gerenciar usuários do sistema.");
   }
@@ -86,6 +80,10 @@ export async function updateSystemUser(id: string, formData: FormData) {
     }
   }
 
+  if (!Object.values(Role).includes(role)) throw new Error("Nível de acesso inválido.");
+  if (password && password.length < 6) throw new Error("A senha deve ter pelo menos 6 caracteres.");
+  if (password && currentUser.id === id) throw new Error("Use Alterar Senha e informe sua senha atual.");
+
   const updateData: any = {
     name,
     username,
@@ -105,12 +103,16 @@ export async function updateSystemUser(id: string, formData: FormData) {
     data: updateData
   });
 
-  await logActivity("EDITAR_USUARIO_SISTEMA", `Username: ${username} | Role: ${role}`);
+  await writeActivityLog(currentUser.id, "EDITAR_USUARIO_SISTEMA", `Username: ${username} | Role: ${role}`);
   revalidatePath("/configuracoes/usuarios");
 }
 
-export async function updateSystemUserPassword(id: string, password: string) {
-  const currentUser = await requireSession();
+export async function updateSystemUserPassword(id: string, password: string, currentPassword?: string) {
+  const currentUser = await requireUser();
+  const isSelf = currentUser.id === id;
+  if (!isSelf && currentUser.role !== "ADMIN" && currentUser.role !== "MANAGER") {
+    throw new Error("Acesso negado.");
+  }
 
   // Busca o usuário alvo
   const targetUser = await prisma.systemUser.findUnique({ where: { id } });
@@ -127,7 +129,9 @@ export async function updateSystemUserPassword(id: string, password: string) {
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  const isSelf = currentUser.id === id;
+  if (isSelf && (!currentPassword || !await bcrypt.compare(currentPassword, targetUser.password))) {
+    throw new Error("Senha atual incorreta.");
+  }
 
   await prisma.systemUser.update({
     where: { id },
@@ -137,11 +141,13 @@ export async function updateSystemUserPassword(id: string, password: string) {
     },
   });
 
+  await writeActivityLog(currentUser.id, "ALTERAR_SENHA", `Usuário: ${id}`);
   revalidatePath("/configuracoes/usuarios");
 }
 
 export async function updateSystemUserRole(id: string, newRole: Role) {
-  const currentUser = await requireSession();
+  const currentUser = await requireUser();
+  if (!Object.values(Role).includes(newRole)) throw new Error("Nível de acesso inválido.");
 
   // Apenas ADMIN pode alterar roles
   if (currentUser.role !== "ADMIN") {
@@ -165,12 +171,12 @@ export async function updateSystemUserRole(id: string, newRole: Role) {
     data: { role: newRole },
   });
 
-  await logActivity("ALTERAR_NIVEL_USUARIO", `ID: ${id} | Nova Role: ${newRole}`);
+  await writeActivityLog(currentUser.id, "ALTERAR_NIVEL_USUARIO", `ID: ${id} | Nova Role: ${newRole}`);
   revalidatePath("/configuracoes/usuarios");
 }
 
 export async function deleteSystemUser(id: string) {
-  const currentUser = await requireSession();
+  const currentUser = await requireUser();
 
   // Apenas ADMIN pode excluir usuários
   if (currentUser.role !== "ADMIN") {
@@ -195,12 +201,13 @@ export async function deleteSystemUser(id: string) {
 
   await prisma.systemUser.delete({ where: { id } });
 
-  await logActivity("EXCLUIR_USUARIO", `ID: ${id}`);
+  await writeActivityLog(currentUser.id, "EXCLUIR_USUARIO", `ID: ${id}`);
   revalidatePath("/configuracoes/usuarios");
 }
 
 export async function resetUserPassword(id: string) {
-  const currentUser = await requireSession();
+  const currentUser = await requireUser();
+  if (currentUser.id === id) throw new Error("Use Alterar Senha e informe sua senha atual.");
 
   // Apenas ADMIN ou MANAGER podem acionar
   if (currentUser.role !== "ADMIN" && currentUser.role !== "MANAGER") {
@@ -215,7 +222,8 @@ export async function resetUserPassword(id: string) {
     throw new Error("Acesso negado. Apenas administradores podem alterar a senha de outros administradores.");
   }
 
-  const hashedPassword = await bcrypt.hash("Mudar@123", 10);
+  const temporaryPassword = randomBytes(18).toString("base64url");
+  const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
 
   await prisma.systemUser.update({
     where: { id },
@@ -225,22 +233,16 @@ export async function resetUserPassword(id: string) {
     },
   });
 
-  await logActivity("RESET_SENHA", `ID: ${id}`);
+  await writeActivityLog(currentUser.id, "RESET_SENHA", `ID: ${id}`);
   revalidatePath("/configuracoes/usuarios");
 
-  return { message: "Senha redefinida para Mudar@123" };
+  return { message: `Senha provisória: ${temporaryPassword}. O usuário deverá alterá-la no próximo acesso.` };
 }
 
 export async function forceChangeUserPassword(password: string, confirmPassword: string) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    throw new Error("Não autenticado.");
-  }
-
-  const userId = (session.user as any).id;
-  if (!userId) {
-    throw new Error("Usuário não identificado.");
-  }
+  const user = await requireUser(true);
+  if (!user.mustChangePassword) throw new Error("Sua conta não exige troca de senha. Use o fluxo com senha atual.");
+  const userId = user.id;
 
   if (password !== confirmPassword) {
     throw new Error("As senhas não coincidem.");
@@ -264,6 +266,7 @@ export async function forceChangeUserPassword(password: string, confirmPassword:
     },
   });
 
+  await writeActivityLog(user.id, "TROCAR_SENHA_PROVISORIA");
   return { success: true, message: "Senha alterada com sucesso." };
 }
 

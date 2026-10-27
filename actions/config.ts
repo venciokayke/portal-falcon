@@ -1,5 +1,7 @@
 "use server";
 
+import { requireRole, requireUser } from "@/lib/auth";
+
 import { prisma } from "@/lib/prisma";
 
 const KEYS = {
@@ -13,6 +15,7 @@ const DEFAULTS = {
 };
 
 export async function getGlobalRates(): Promise<{ extraHourRate: number; workedHourRate: number }> {
+  await requireUser();
   const configs = await prisma.systemConfig.findMany({
     where: { key: { in: Object.values(KEYS) } },
   });
@@ -26,6 +29,10 @@ export async function getGlobalRates(): Promise<{ extraHourRate: number; workedH
 }
 
 export async function saveGlobalRates(extraHourRate: number, workedHourRate: number) {
+  await requireRole("ADMIN", "MANAGER");
+  if (![extraHourRate, workedHourRate].every(rate => typeof rate === "number" && Number.isFinite(rate) && rate >= 0 && rate <= 999999.99)) {
+    throw new Error("Informe taxas válidas e não negativas.");
+  }
   await prisma.$transaction([
     prisma.systemConfig.upsert({
       where: { key: KEYS.EXTRA_HOUR_RATE },

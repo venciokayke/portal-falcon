@@ -89,11 +89,14 @@ model Shift {
   location      String
   checkIn       DateTime?
   checkOut      DateTime?
+  breakStart    DateTime?
+  breakEnd      DateTime?
   hasIntervalHour Boolean  @default(true)
   observations  String?  @db.Text
 
   employee      Employee @relation(fields: [employeeId], references: [id])
 
+  @@index([employeeId, referenceDate])
   @@map("shifts")
 }
 
@@ -188,6 +191,7 @@ model OvertimeEntry {
 
   hours        Decimal  @db.Decimal(10, 2) @default(0)
   extraValue   Decimal  @db.Decimal(10, 2) @default(0)
+  intervalValue Decimal @db.Decimal(10, 2) @default(0)
   totalValue   Decimal  @db.Decimal(10, 2) @default(0)
   observations String?  @db.Text
   status       String   @default("PENDENTE") // PENDENTE | PAGO
@@ -212,12 +216,17 @@ model AbsenceExemption {
   startDate   DateTime @db.Date
   endDate     DateTime @db.Date
   reason      String   @db.Text
+  attachmentName String?
+  attachmentMime String?
+  attachmentData Bytes?
+  uploadedById   String? @db.Uuid
 
   employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@index([employeeId, startDate, endDate])
   @@map("absence_exemptions")
 }
 

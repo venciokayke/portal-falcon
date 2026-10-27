@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSession, signOut } from "next-auth/react";
 import { createSystemUser, updateSystemUser } from "@/actions/system-user";
 import { UserPlus, Pencil, X, Loader2, AlertTriangle } from "lucide-react";
 import { AlertModal } from "@/components/ui/AlertModal";
@@ -12,6 +13,8 @@ export default function UserFormModal({
   user?: any;
   trigger?: React.ReactNode;
 }) {
+  const { data: session } = useSession();
+  const isSelf = user?.id === (session?.user as { id?: string })?.id && !!user;
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [alertModal, setAlertModal] = useState<{ isOpen: boolean; title: string; message: string }>({ isOpen: false, title: "", message: "" });
@@ -40,6 +43,7 @@ export default function UserFormModal({
     try {
       if (user) {
         await updateSystemUser(user.id, formData);
+        if ((session?.user as { id?: string })?.id === user.id) await signOut({ callbackUrl: "/login" });
       } else {
         await createSystemUser(formData);
       }
@@ -113,7 +117,7 @@ export default function UserFormModal({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              {isSelf ? <p className="text-sm text-gray-500">Para trocar sua senha, use a ação Alterar Senha na tabela.</p> : <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Senha {user && "(opcional)"}
@@ -140,7 +144,7 @@ export default function UserFormModal({
                     placeholder="••••••"
                   />
                 </div>
-              </div>
+              </div>}
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Nível de Acesso</label>

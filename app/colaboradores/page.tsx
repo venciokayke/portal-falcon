@@ -1,3 +1,4 @@
+import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import EmployeeTable from "./components/EmployeeTable";
 import EmployeeFormModal from "./components/EmployeeFormModal";
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 
 export default async function ColaboradoresPage() {
+  await requirePermission("MANAGE_EMPLOYEES");
   const employees = await prisma.employee.findMany({
     where: { isActive: true },
     orderBy: { name: "asc" },

@@ -1,9 +1,12 @@
 "use server";
 
+import { requireRole, requireUser } from "@/lib/auth";
+
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
 export async function getWorkLocations(includeArchived = false) {
+  await requireUser();
   return await prisma.workLocation.findMany({
     // @ts-ignore
     where: includeArchived ? undefined : { isActive: true },
@@ -12,6 +15,7 @@ export async function getWorkLocations(includeArchived = false) {
 }
 
 export async function createWorkLocation(name: string) {
+  await requireRole("ADMIN", "MANAGER");
   try {
     const existing = await prisma.workLocation.findUnique({
       where: { name },
@@ -37,6 +41,7 @@ export async function createWorkLocation(name: string) {
 }
 
 export async function archiveWorkLocation(id: string) {
+  await requireRole("ADMIN", "MANAGER");
   try {
     // @ts-ignore
     await prisma.workLocation.update({
@@ -54,6 +59,7 @@ export async function archiveWorkLocation(id: string) {
 }
 
 export async function unarchiveWorkLocation(id: string) {
+  await requireRole("ADMIN", "MANAGER");
   try {
     // @ts-ignore
     await prisma.workLocation.update({

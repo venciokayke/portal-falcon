@@ -1,12 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { saveShifts, getShifts, deleteShift, updateSavedShift, createEmptyShift, updateEmployeeMonthParity, syncOvertimeEntry, getEmployeeMonthParity } from "@/actions/shift";
+import { getShifts, deleteShift, updateSavedShift, createEmptyShift, updateEmployeeMonthParity, getShiftMonthSummary, getEmployeeMonthParity } from "@/actions/shift";
 import { Calendar, MapPin, Plus, Trash2, Clock, Printer, CheckCircle, Loader2, MessageSquare, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { AlertModal } from "@/components/ui/AlertModal";
 import Link from "next/link";
+import AbsenceExemptionModal from "@/app/colaboradores/components/AbsenceExemptionModal";
+import { getAbsenceExemptions } from "@/actions/employee";
+import { resolveShiftTimes, workedMinutes, formatHours } from "@/utils/shift-time";
+import type { PayrollResult } from "@/utils/calculatePayroll";
 
 function getDaysInMonth(month: number, year: number) {
   return new Date(year, month + 1, 0).getDate();
@@ -63,9 +67,12 @@ export default function TimeTrackingClient({
     if (typeof window !== "undefined") sessionStorage.setItem(`ponto_${employee.id}_year`, String(val));
   };
 
-  const [shifts, setShifts] = useState<Record<string, any[]>>({});
+  const [summary, setSummary] = useState<PayrollResult | null>(null);
+  const [exemptions, setExemptions] = useState<Awaited<ReturnType<typeof getAbsenceExemptions>>>([]);
+  const [saveError, setSaveError] = useState("");
   const [savedShiftsList, setSavedShiftsList] = useState<any[]>([]);
   const [savedEdits, setSavedEdits] = useState<Record<string, any>>({}); 
+  const hasPendingEdits = Object.keys(savedEdits).length > 0;
   const [isSaving, setIsSaving] = useState(false);
   const [isSynced, setIsSynced] = useState(true);
   const [isLoadingSaved, setIsLoadingSaved] = useState(false);
@@ -86,6 +93,7 @@ export default function TimeTrackingClient({
     try {
       await updateEmployeeMonthParity(employee.id, selectedMonth, selectedYear, newParity);
       setIsSynced(true);
+      await loadSavedShifts();
       router.refresh();
     } catch (error) {
       console.error("Erro ao atualizar paridade", error);
@@ -98,15 +106,19 @@ export default function TimeTrackingClient({
   const loadSavedShifts = useCallback(async () => {
     setIsLoadingSaved(true);
     try {
-      const [data, parity] = await Promise.all([
+      const [data, parity, calculation, periods] = await Promise.all([
         getShifts(employee.id, selectedMonth, selectedYear),
-        getEmployeeMonthParity(employee.id, selectedMonth, selectedYear)
+        getEmployeeMonthParity(employee.id, selectedMonth, selectedYear),
+        getShiftMonthSummary(employee.id, selectedMonth, selectedYear),
+        getAbsenceExemptions(employee.id)
       ]);
       setSavedShiftsList(data);
+      setSummary(calculation);
+      setExemptions(periods);
       setCurrentParity(parity || employee.startParity || "NONE");
       setSavedEdits({}); 
     } catch (error) {
-      console.error("Erro ao carregar turnos", error);
+      setSaveError("Falha ao carregar o ponto. Recarregue a p?gina.");
     } finally {
       setIsLoadingSaved(false);
     }
@@ -119,28 +131,18 @@ export default function TimeTrackingClient({
   // Navega de volta ao pressionar Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && hasPendingEdits) { setSaveError("Salve os turnos alterados antes de sair."); return; }
       if (e.key === "Escape") router.push(`/ponto?month=${selectedMonth + 1}&year=${selectedYear}`);
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [router, selectedMonth, selectedYear]);
+  }, [router, selectedMonth, selectedYear, hasPendingEdits]);
 
-  const calculateShiftHours = (checkIn: string, checkOut: string) => {
-    if (!checkIn || !checkOut) return 0;
-    const [inH, inM] = checkIn.split(':').map(Number);
-    const [outH, outM] = checkOut.split(':').map(Number);
-
-    let inMinutes = inH * 60 + inM;
-    let outMinutes = outH * 60 + outM;
-
-    if (outMinutes < inMinutes) {
-      outMinutes += 24 * 60;
-    }
-
-    return (outMinutes - inMinutes) / 60;
+  const calculateShiftHours = (shift: any) => {
+    try { return workedMinutes(resolveShiftTimes(shift.referenceDate.slice(0, 10), shift)) / 60; }
+    catch { return 0; }
   };
-
-  const totalWorkedHours = savedShiftsList.reduce((acc, shift) => acc + Math.round(calculateShiftHours(shift.checkIn, shift.checkOut)), 0);
+  const totalWorkedHours = summary?.totalWorkedHours ?? 0;
 
   const daysCount = getDaysInMonth(selectedMonth, selectedYear);
   const daysArray = Array.from({ length: daysCount }, (_, i) => {
@@ -172,65 +174,12 @@ export default function TimeTrackingClient({
     }
   }
 
-  // 1. Lógica do 'VALOR P/H' (Taxa Financeira)
   const isCLT = employee.contractType === 'CLT';
   const isPJFixo = employee.contractType === 'PJ_FIXO';
-  const isPJHorista = employee.contractType === 'PJ_HORISTA';
-
-  let taxaHora = 0;
-  if (isPJFixo) {
-    taxaHora = 0;
-  } else {
-    taxaHora = Number(employee.hourlyRate);
-    if (!taxaHora) {
-      taxaHora = isCLT ? globalRates.extraHourRate : globalRates.workedHourRate;
-    }
-  }
-
-  // 2. Lógica de 'HORAS PREVISTAS' (Carga Horária Base)
-  let horasPrevistas = 0;
-  if (isCLT) {
-    if (employee.workSchedule === 'FIXED_220') {
-      horasPrevistas = 220;
-    } else if (employee.workSchedule === 'FIXED_180') {
-      horasPrevistas = 180;
-    } else if (employee.workSchedule === 'SCALE_12X36') {
-      let calcPrevistas = 0;
-      for (let d = 1; d <= daysCount; d++) {
-        const isPar = d % 2 === 0;
-        if (currentParity === 'PAR' && isPar) calcPrevistas += 12;
-        if (currentParity === 'IMPAR' && !isPar) calcPrevistas += 12;
-      }
-      horasPrevistas = calcPrevistas;
-    }
-  }
-
-  // 3. Lógica de 'SALDO' e 'TOTAL (R$)' (Fechamento)
-  let saldoHoras = 0;
-  let valorTotal = 0;
-
-  if (isPJFixo) {
-    saldoHoras = totalWorkedHours;
-    valorTotal = Number(employee.baseSalary) || 0;
-  } else if (isPJHorista || employee.contractType === 'HORISTA') {
-    saldoHoras = totalWorkedHours;
-    valorTotal = totalWorkedHours * taxaHora;
-  } else if (isCLT) {
-    saldoHoras = totalWorkedHours - horasPrevistas;
-    if (saldoHoras > 0) {
-      valorTotal = saldoHoras * taxaHora;
-    } else {
-      valorTotal = 0;
-    }
-  }
-
-  // Sincronizar horas extras quando o total mudar
-  useEffect(() => {
-    if (!isLoadingSaved) {
-      syncOvertimeEntry(employee.id, selectedMonth + 1, selectedYear, isCLT ? Math.max(0, saldoHoras) : totalWorkedHours, valorTotal);
-    }
-  }, [totalWorkedHours, saldoHoras, valorTotal, employee.id, selectedMonth, selectedYear, isLoadingSaved, isCLT]);
-
+  const taxaHora = employee.hourlyRate == null ? (isCLT ? globalRates.extraHourRate : globalRates.workedHourRate) : Number(employee.hourlyRate);
+  const horasPrevistas = summary?.baseHours ?? 0;
+  const saldoHoras = isCLT ? totalWorkedHours - horasPrevistas : totalWorkedHours;
+  const valorTotal = isPJFixo ? Number(employee.baseSalary) || 0 : isCLT ? (summary?.extraValue ?? 0) + (summary?.intervalValue ?? 0) : totalWorkedHours * taxaHora + (summary?.intervalValue ?? 0);
 
   const handleAddShift = async (dateString: string) => {
     setIsSaving(true);
@@ -247,7 +196,7 @@ export default function TimeTrackingClient({
       }
       setIsSynced(true);
     } catch (e) {
-      console.error("Erro ao criar turno", e);
+      setSaveError("Falha ao criar turno. Tente novamente.");
     } finally {
       setIsSaving(false);
     }
@@ -263,10 +212,11 @@ export default function TimeTrackingClient({
     
     try {
       await deleteShift(id);
+      await loadSavedShifts();
       setSavedShiftsList(prev => prev.filter(s => s.id !== id));
       setIsSynced(true);
     } catch (error) {
-      console.error("Erro deletar", error);
+      setSaveError("Falha ao excluir turno. Tente novamente.");
     } finally {
       setIsSaving(false);
     }
@@ -283,9 +233,6 @@ export default function TimeTrackingClient({
     const edits = savedEdits[shift.id];
     if (!edits || Object.keys(edits).length === 0) return;
     
-    const finalLocation = edits.location !== undefined ? edits.location : shift.location;
-    const finalCheckIn = edits.checkIn !== undefined ? edits.checkIn : shift.checkIn;
-    const finalCheckOut = edits.checkOut !== undefined ? edits.checkOut : shift.checkOut;
 
     const referenceDate = new Date(shift.referenceDate);
     const referenceDateStr = `${referenceDate.getUTCFullYear()}-${String(referenceDate.getUTCMonth() + 1).padStart(2, "0")}-${String(referenceDate.getUTCDate()).padStart(2, "0")}`;
@@ -293,23 +240,15 @@ export default function TimeTrackingClient({
     setIsSaving(true);
     setIsSynced(false);
     
-    // Auto delete se estiver tudo vazio
-    if (!finalLocation && !finalCheckIn && !finalCheckOut && !shift.observations && !edits.observations) {
-      await deleteShift(shift.id);
-      setSavedShiftsList(prev => prev.filter(s => s.id !== shift.id));
-      setSavedEdits(prev => { const next = { ...prev }; delete next[shift.id]; return next; });
-      setIsSynced(true);
-      setIsSaving(false);
-      return;
-    }
-
     try {
       await updateSavedShift(shift.id, referenceDateStr, edits);
+      setSummary(await getShiftMonthSummary(employee.id, selectedMonth, selectedYear));
+      setSaveError("");
       setSavedShiftsList(prev => prev.map(s => s.id === shift.id ? { ...s, ...edits } : s));
       setSavedEdits(prev => { const next = { ...prev }; delete next[shift.id]; return next; });
       setIsSynced(true);
     } catch (e) {
-      console.error("Erro ao atualizar turno", e);
+      setSaveError(e instanceof Error ? e.message : "Falha ao salvar o turno.");
     } finally {
       setIsSaving(false);
     }
@@ -339,6 +278,8 @@ export default function TimeTrackingClient({
 
   return (
     <div className="flex flex-col gap-6">
+      <AlertModal isOpen={!!saveError} onClose={() => setSaveError('')} title="Não foi possível salvar" message={saveError} />
+      <p className="text-sm text-gray-600 print:hidden">Edite os horários e clique em Salvar no turno. Intervalos incompletos ficam pendentes e não entram na apuração.</p>
       <ConfirmModal
         isOpen={confirmDelete.isOpen}
         title="Apagar Turno"
@@ -410,9 +351,9 @@ export default function TimeTrackingClient({
               <Calendar className="text-gray-500 h-5 w-5" />
               <select
                 value={selectedMonth}
+                disabled={isSaving || hasPendingEdits}
                 onChange={e => {
                   setSelectedMonth(Number(e.target.value));
-                  setShifts({});
                 }}
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700 transition-shadow"
               >
@@ -420,9 +361,9 @@ export default function TimeTrackingClient({
               </select>
               <select
                 value={selectedYear}
+                disabled={isSaving || hasPendingEdits}
                 onChange={e => {
                   setSelectedYear(Number(e.target.value));
-                  setShifts({});
                 }}
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700 transition-shadow"
               >
@@ -438,7 +379,7 @@ export default function TimeTrackingClient({
                 <select
                   value={currentParity}
                   onChange={handleParityChange}
-                  disabled={isSaving}
+                  disabled={isSaving || hasPendingEdits}
                   className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold text-gray-700 transition-shadow text-xs cursor-pointer"
                 >
                   <option value="NONE">Selecione...</option>
@@ -487,7 +428,7 @@ export default function TimeTrackingClient({
               ) : (
                 <>
                   <CheckCircle className="h-4 w-4 text-green-500" />
-                  <span className="text-sm text-gray-400">Salvo</span>
+                  <span className="text-sm text-gray-400">{Object.keys(savedEdits).length ? 'Pendente' : 'Salvo'}</span>
                 </>
               )}
             </div>
@@ -500,7 +441,7 @@ export default function TimeTrackingClient({
             <thead className="bg-gray-100 border-b border-gray-200 text-gray-700">
               <tr>
                 <th className="px-6 py-4 font-semibold w-24">Data</th>
-                <th className="px-6 py-4 font-semibold">Turnos (Local, Entrada, Saída)</th>
+                <th className="px-6 py-4 font-semibold">Turnos e intervalo de almoço</th>
                 <th className="px-6 py-4 font-semibold w-32 text-center">Horas Trab.</th>
                 <th className="px-6 py-4 font-semibold text-right w-24">Ação</th>
               </tr>
@@ -530,7 +471,7 @@ export default function TimeTrackingClient({
                   const edits = savedEdits[s.id] || {};
                   const ci = edits.checkIn !== undefined ? edits.checkIn : s.checkIn;
                   const co = edits.checkOut !== undefined ? edits.checkOut : s.checkOut;
-                  return (ci && !co) || (!ci && co);
+                  return (ci && !co) || (!ci && co) || !!(edits.breakStart ?? s.breakStart) !== !!(edits.breakEnd ?? s.breakEnd);
                 });
                 
                 let rowBgClass = isWorkDay ? 'bg-slate-50' : 'bg-white';
@@ -544,6 +485,9 @@ export default function TimeTrackingClient({
                       <div className="flex flex-col">
                         <span className="font-semibold text-gray-900">{String(day).padStart(2, '0')}/{String(selectedMonth + 1).padStart(2, '0')}</span>
                         <span className={`text-xs mt-0.5 ${isWorkDay ? 'text-blue-600 font-medium' : 'text-gray-500'} capitalize`}>{dayOfWeek}</span>
+                        {exemptions.filter(ex => ex.startDate.slice(0, 10) <= dateString && ex.endDate.slice(0, 10) >= dateString).map(ex => (
+                          <span key={ex.id} className="text-xs text-orange-700 mt-1">Abonado {ex.attachmentName && <a className="underline" href={`/api/atestados/${ex.id}`}>Atestado</a>}</span>
+                        ))}
                       </div>
                     </td>
                     <td className="px-6 py-4 align-top">
@@ -555,7 +499,7 @@ export default function TimeTrackingClient({
                           const co = edits.checkOut !== undefined ? edits.checkOut : shift.checkOut;
                           const obs = edits.observations !== undefined ? edits.observations : shift.observations;
                           
-                          const isIncomplete = (ci && !co) || (!ci && co);
+                          const isIncomplete = (ci && !co) || (!ci && co) || !!(edits.breakStart ?? shift.breakStart) !== !!(edits.breakEnd ?? shift.breakEnd);
 
                           return (
                           <div key={shift.id} className={`flex flex-col xl:flex-row gap-3 items-start xl:items-center p-3 rounded-lg border shadow-sm border-l-4 ${isIncomplete ? 'bg-yellow-50 border-yellow-200 border-l-yellow-400' : 'bg-green-50/50 border-green-200 border-l-green-500'}`}>
@@ -566,7 +510,6 @@ export default function TimeTrackingClient({
                               <select
                                 value={loc}
                                 onChange={e => handleUpdateSavedShiftField(shift.id, "location", e.target.value)}
-                                onBlur={() => handleBlurSavedShift(shift)}
                                 className={`w-full pl-9 pr-3 py-2 border rounded-md focus:ring-2 outline-none text-sm font-medium text-gray-800 bg-white transition-shadow ${isIncomplete ? 'border-yellow-300 focus:ring-yellow-400' : 'border-green-200 focus:ring-green-400'}`}
                               >
                                 <option value="">Sem Local</option>
@@ -581,7 +524,6 @@ export default function TimeTrackingClient({
                                 type="time"
                                 value={ci}
                                 onChange={e => handleUpdateSavedShiftField(shift.id, "checkIn", e.target.value)}
-                                onBlur={() => handleBlurSavedShift(shift)}
                                 className={`px-2 py-1.5 border rounded-md focus:ring-2 outline-none text-sm font-medium text-gray-700 bg-white transition-shadow ${isIncomplete ? 'border-yellow-300 focus:ring-yellow-400' : 'border-green-200 focus:ring-green-400'}`}
                               />
                               <span className="text-gray-400 font-medium px-0.5">até</span>
@@ -589,9 +531,20 @@ export default function TimeTrackingClient({
                                 type="time"
                                 value={co}
                                 onChange={e => handleUpdateSavedShiftField(shift.id, "checkOut", e.target.value)}
-                                onBlur={() => handleBlurSavedShift(shift)}
                                 className={`px-2 py-1.5 border rounded-md focus:ring-2 outline-none text-sm font-medium text-gray-700 bg-white transition-shadow ${isIncomplete ? 'border-yellow-300 focus:ring-yellow-400' : 'border-green-200 focus:ring-green-400'}`}
                               />
+                              <label className="text-xs text-gray-600 flex flex-col gap-1">Almoço: saída
+                                <input type="time" value={edits.breakStart ?? shift.breakStart ?? ''} aria-label="Saída para almoço"
+                                  onChange={e => handleUpdateSavedShiftField(shift.id, 'breakStart', e.target.value)}
+                                  className="px-2 py-1.5 border rounded-md bg-white text-gray-800" />
+                              </label>
+                              <label className="text-xs text-gray-600 flex flex-col gap-1">Retorno
+                                <input type="time" value={edits.breakEnd ?? shift.breakEnd ?? ''} aria-label="Retorno do almoço"
+                                  onChange={e => handleUpdateSavedShiftField(shift.id, 'breakEnd', e.target.value)}
+                                  className="px-2 py-1.5 border rounded-md bg-white text-gray-800" />
+                              </label>
+                              <button disabled={isSaving || !savedEdits[shift.id]} onClick={() => handleBlurSavedShift(shift)}
+                                className="px-3 py-2 rounded-md bg-blue-600 text-white text-xs disabled:opacity-40">Salvar</button>
                               <button
                                 onClick={() => setObservationModal({isOpen: true, shiftId: shift.id, text: obs || ""})}
                                 className={`p-2 ml-1 rounded-md transition-colors relative ${obs ? 'text-blue-600 bg-blue-100 hover:bg-blue-200' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
@@ -601,6 +554,7 @@ export default function TimeTrackingClient({
                                 {obs && <span className="absolute top-0 right-0 w-2 h-2 bg-blue-500 rounded-full border border-white"></span>}
                               </button>
                               <button
+                                disabled={isSaving || hasPendingEdits}
                                 onClick={() => setConfirmDelete({isOpen: true, shiftId: shift.id})}
                                 className="p-2 ml-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
                                 title="Remover Turno Salvo do Banco"
@@ -625,18 +579,20 @@ export default function TimeTrackingClient({
                           const co = edits.checkOut !== undefined ? edits.checkOut : shift.checkOut;
                           return (
                           <div key={shift.id} className="flex items-center justify-center font-bold text-gray-800 min-h-[46px]">
-                            {Math.round(calculateShiftHours(ci, co))}
+                            {formatHours(calculateShiftHours({ ...shift, ...edits }))}
                           </div>
                         )})}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right align-top border-l border-gray-100">
+                      <AbsenceExemptionModal employeeId={employee.id} employeeName={employee.name} initialDate={dateString} onSaved={loadSavedShifts} disabled={isSaving || hasPendingEdits} />
                       <button
+                        disabled={isSaving || hasPendingEdits}
                         onClick={() => handleAddShift(dateString)}
                         className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100 whitespace-nowrap"
                       >
                         <Plus className="h-4 w-4" />
-                        Adicionar
+                        Turno
                       </button>
                     </td>
                   </tr>
@@ -653,14 +609,14 @@ export default function TimeTrackingClient({
             </div>
             <div className="p-4 flex flex-col items-center justify-center">
                <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Horas Efetivas (Mensal)</span>
-               <span className="text-2xl font-black text-blue-600 mt-1">{totalWorkedHours}</span>
+               <span className="text-2xl font-black text-blue-600 mt-1">{formatHours(totalWorkedHours)}</span>
             </div>
             <div className="p-4 flex flex-col items-center justify-center bg-blue-50">
                <span className="text-xs font-bold uppercase tracking-wider text-blue-600 text-center">
                   {isPJFixo ? 'Total Saldo' : isCLT ? 'Saldo (Extras/Faltas)' : 'Saldo Efetivo'}
                </span>
                <span className={`text-2xl font-black mt-1 ${saldoHoras < 0 ? 'text-red-500' : 'text-green-600'}`}>
-                  {saldoHoras > 0 ? '+' : ''}{Math.round(saldoHoras)}
+                  {saldoHoras > 0 ? '+' : ''}{formatHours(saldoHoras)}
                </span>
             </div>
           </div>
@@ -674,7 +630,7 @@ export default function TimeTrackingClient({
                <span className="text-sm font-medium mt-1 text-emerald-800/80">
                  {!isPJFixo ? (
                    <>
-                     Saldo Efetivo ({Math.round(Math.max(0, saldoHoras))}h) <span className="mx-1">×</span> Taxa (R$ {taxaHora.toFixed(2)})
+                     Saldo Efetivo ({formatHours(Math.max(0, saldoHoras))}h) <span className="mx-1">×</span> Taxa (R$ {taxaHora.toFixed(2)})
                    </>
                  ) : (
                    'Valor fechado conforme contrato'
@@ -683,6 +639,7 @@ export default function TimeTrackingClient({
              </div>
              <div className="text-3xl font-black mt-3 md:mt-0 text-emerald-600">
                R$ {valorTotal.toFixed(2)}
+               {!!summary?.intervalValue && <span className="block text-xs font-normal">Inclui R$ {summary.intervalValue.toFixed(2)} de verba intervalar</span>}
              </div>
           </div>
 
@@ -699,6 +656,8 @@ export default function TimeTrackingClient({
                   <th className="px-1 py-1 font-semibold border-r border-black w-8 text-center">DIA</th>
                   <th className="px-1 py-1 font-semibold border-r border-black print:w-[80px] print:max-w-[80px] truncate">LOCAL</th>
                   <th className="px-1 py-1 font-semibold border-r border-black w-14 text-center">ENTRADA</th>
+                  <th className="px-1 py-1 font-semibold border-r border-black w-14 text-center">ALMOÇO</th>
+                  <th className="px-1 py-1 font-semibold border-r border-black w-14 text-center">RETORNO</th>
                   <th className="px-1 py-1 font-semibold border-r border-black w-14 text-center">SAÍDA</th>
                   <th className="px-1 py-1 font-semibold border-r border-black w-16 text-center">HORAS TRAB</th>
                   <th className="px-1 py-1 font-semibold w-20">OBSERVAÇÃO</th>
@@ -730,6 +689,7 @@ export default function TimeTrackingClient({
                           {savedForDay.length > 0 ? savedForDay.map(s => <span key={s.id}>{s.checkIn || "..."}</span>) : <span className="text-transparent">.</span>}
                         </div>
                       </td>
+                      {(['breakStart', 'breakEnd'] as const).map(field => <td key={field} className="px-1 py-1 border-r border-black text-center align-middle"><div className="flex flex-col gap-1">{savedForDay.length ? savedForDay.map(s => <span key={s.id}>{s[field] || '—'}</span>) : ' '}</div></td>)}
                       <td className="px-1 py-1 border-r border-black text-center align-middle">
                         <div className="flex flex-col gap-1">
                           {savedForDay.length > 0 ? savedForDay.map(s => <span key={s.id}>{s.checkOut || "..."}</span>) : <span className="text-transparent">.</span>}
@@ -737,7 +697,7 @@ export default function TimeTrackingClient({
                       </td>
                       <td className="px-1 py-1 border-r border-black text-center align-middle font-bold">
                         <div className="flex flex-col gap-1">
-                          {savedForDay.length > 0 ? savedForDay.map(s => <span key={s.id}>{Math.round(calculateShiftHours(s.checkIn, s.checkOut))}</span>) : <span className="text-transparent">.</span>}
+                          {savedForDay.length > 0 ? savedForDay.map(s => <span key={s.id}>{formatHours(calculateShiftHours(s))}</span>) : <span className="text-transparent">.</span>}
                         </div>
                       </td>
                       <td className="px-1 py-1 align-middle text-[10px]">
@@ -751,8 +711,8 @@ export default function TimeTrackingClient({
               </tbody>
               <tfoot>
                 <tr className="bg-gray-200 border-t border-black">
-                  <td className="px-1 py-1 font-bold text-right uppercase border-r border-black" colSpan={5}>TOTAL</td>
-                  <td className="px-1 py-1 font-bold text-center border-r border-black">{totalWorkedHours}</td>
+                  <td className="px-1 py-1 font-bold text-right uppercase border-r border-black" colSpan={7}>TOTAL</td>
+                  <td className="px-1 py-1 font-bold text-center border-r border-black">{formatHours(totalWorkedHours)}</td>
                   <td></td>
                 </tr>
               </tfoot>
@@ -774,11 +734,11 @@ export default function TimeTrackingClient({
                 </tr>
                 <tr>
                   <td className="px-2 py-1 font-semibold border-r border-black w-2/3">HORAS EFETIVAS</td>
-                  <td className="px-2 py-1 text-center font-bold">{totalWorkedHours}</td>
+                  <td className="px-2 py-1 text-center font-bold">{formatHours(totalWorkedHours)}</td>
                 </tr>
                 <tr>
                   <td className="px-2 py-1 font-semibold border-r border-black w-2/3 bg-gray-100">SALDO (h)</td>
-                  <td className="px-2 py-1 text-center font-bold bg-gray-100">{Math.round(saldoHoras)}</td>
+                  <td className="px-2 py-1 text-center font-bold bg-gray-100">{formatHours(saldoHoras)}</td>
                 </tr>
               </tbody>
             </table>
@@ -798,7 +758,7 @@ export default function TimeTrackingClient({
                       <div className="flex flex-col items-center justify-center gap-1">
                         <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Demonstrativo (Saldo × Taxa)</div>
                         <div className="flex items-center gap-3 font-bold text-sm mt-1">
-                          <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{Math.round(Math.max(0, saldoHoras))}h</span>
+                          <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{formatHours(Math.max(0, saldoHoras))}h</span>
                           <span className="text-gray-400 text-[10px]">X</span>
                           <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">R$ {taxaHora.toFixed(2)}</span>
                         </div>

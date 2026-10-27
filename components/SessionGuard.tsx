@@ -20,6 +20,10 @@ export default function SessionGuard() {
     if (status === "loading") return;
 
     if (status === "authenticated") {
+      if (!session?.user) {
+        signOut({ callbackUrl: "/login" });
+        return;
+      }
       const tabToken = sessionStorage.getItem(SESSION_KEY);
       if (!tabToken) {
         // JWT válido mas aba foi fechada/reaberta sem login — encerra

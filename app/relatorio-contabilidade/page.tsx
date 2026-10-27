@@ -1,3 +1,4 @@
+import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import AccountingReportClient from "@/app/relatorio-contabilidade/components/AccountingReportClient";
 import { Suspense } from "react";
@@ -6,6 +7,7 @@ import { Loader2 } from "lucide-react";
 export const dynamic = "force-dynamic";
 
 export default async function RelatorioContabilidadePage({ searchParams }: { searchParams: Promise<{ month?: string; year?: string }> }) {
+  await requirePermission("VIEW_REPORTS");
   const resolvedParams = await searchParams;
   const now = new Date();
   const month = resolvedParams.month ? Number(resolvedParams.month) - 1 : now.getMonth();

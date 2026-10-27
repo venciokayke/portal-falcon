@@ -1,5 +1,7 @@
 "use server";
 
+import { requirePermission } from "@/lib/auth";
+
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
@@ -14,6 +16,7 @@ export async function saveAccountingReportEntries(
     intervalarValue: string;
   }[]
 ) {
+  await requirePermission("VIEW_REPORTS");
   for (const entry of entries) {
     await prisma.accountingReportEntry.upsert({
       where: {
@@ -44,6 +47,7 @@ export async function saveAccountingReportEntries(
 }
 
 export async function getAccountingReportEntries(month: number, year: number) {
+  await requirePermission("VIEW_REPORTS");
   return await prisma.accountingReportEntry.findMany({
     where: {
       month,

@@ -1,12 +1,13 @@
 "use server";
 
+import { requirePermission, requireRole } from "@/lib/auth";
+
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/actions/activity-log";
 
 export async function getPayrollStatus(month: number, year: number) {
+  await requirePermission("MANAGE_SHIFTS", "MANAGE_PAYROLL");
   const record = await prisma.payrollStatus.findUnique({
     where: { month_year: { month, year } },
     include: {
@@ -35,14 +36,7 @@ export async function getPayrollStatus(month: number, year: number) {
 }
 
 export async function submitPayroll(month: number, year: number) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) throw new Error("Não autenticado.");
-
-  const user = await prisma.systemUser.findUnique({
-    where: { username: (session.user as any).username },
-  });
-  if (!user) throw new Error("Usuário não encontrado.");
-
+  const user = await requirePermission("MANAGE_SHIFTS", "MANAGE_PAYROLL");
   await prisma.payrollStatus.upsert({
     where: { month_year: { month, year } },
     update: {
@@ -65,19 +59,7 @@ export async function submitPayroll(month: number, year: number) {
 }
 
 export async function approvePayroll(month: number, year: number) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) throw new Error("Não autenticado.");
-
-  const role = (session.user as any).role;
-  if (role !== "ADMIN" && role !== "MANAGER") {
-    throw new Error("Acesso negado. Apenas gestores podem aprovar.");
-  }
-
-  const user = await prisma.systemUser.findUnique({
-    where: { username: (session.user as any).username },
-  });
-  if (!user) throw new Error("Usuário não encontrado.");
-
+  const user = await requireRole("ADMIN", "MANAGER");
   await prisma.payrollStatus.upsert({
     where: { month_year: { month, year } },
     update: {
@@ -100,14 +82,7 @@ export async function approvePayroll(month: number, year: number) {
 }
 
 export async function rejectPayroll(month: number, year: number) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) throw new Error("Não autenticado.");
-
-  const role = (session.user as any).role;
-  if (role !== "ADMIN" && role !== "MANAGER") {
-    throw new Error("Acesso negado. Apenas gestores podem devolver.");
-  }
-
+  const user = await requireRole("ADMIN", "MANAGER");
   await prisma.payrollStatus.upsert({
     where: { month_year: { month, year } },
     update: {

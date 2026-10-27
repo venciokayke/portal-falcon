@@ -1,3 +1,4 @@
+import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import ReceiptGeneratorClient from "./components/ReceiptGeneratorClient";
 import { Receipt } from "lucide-react";
@@ -5,6 +6,7 @@ import { Receipt } from "lucide-react";
 export const dynamic = 'force-dynamic';
 
 export default async function GeradorRecibosPage() {
+  await requirePermission("VIEW_REPORTS");
   const employees = await prisma.employee.findMany({
     where: { isActive: true },
     select: { id: true, name: true, document: true },

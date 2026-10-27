@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { getAbsenceExemptions, addAbsenceExemption, deleteAbsenceExemption } from "@/actions/employee";
 import { CalendarRange, Trash, Plus, Loader2, X, AlertCircle } from "lucide-react";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 interface Exemption {
   id: string;
@@ -10,14 +11,18 @@ interface Exemption {
   startDate: string;
   endDate: string;
   reason: string;
+  attachmentName: string | null;
 }
 
 interface AbsenceExemptionModalProps {
   employeeId: string;
   employeeName: string;
+  initialDate?: string;
+  onSaved?: () => void;
+  disabled?: boolean;
 }
 
-export default function AbsenceExemptionModal({ employeeId, employeeName }: AbsenceExemptionModalProps) {
+export default function AbsenceExemptionModal({ employeeId, employeeName, initialDate, onSaved, disabled }: AbsenceExemptionModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [exemptions, setExemptions] = useState<Exemption[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -29,6 +34,9 @@ export default function AbsenceExemptionModal({ employeeId, employeeName }: Abse
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [fileKey, setFileKey] = useState(0);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -63,11 +71,16 @@ export default function AbsenceExemptionModal({ employeeId, employeeName }: Abse
     setIsSubmitting(true);
     setError(null);
     try {
-      await addAbsenceExemption(employeeId, startDate, endDate, reason.trim());
+      const attachment = new FormData();
+      if (file) attachment.set('file', file);
+      await addAbsenceExemption(employeeId, startDate, endDate, reason.trim(), attachment);
+      setFile(null);
+      setFileKey(k => k + 1);
       setStartDate("");
       setEndDate("");
       setReason("");
       await loadExemptions();
+      onSaved?.();
     } catch (err: any) {
       setError(err?.message || "Ocorreu um erro ao adicionar o abono.");
     } finally {
@@ -81,6 +94,7 @@ export default function AbsenceExemptionModal({ employeeId, employeeName }: Abse
     try {
       await deleteAbsenceExemption(id);
       await loadExemptions();
+      onSaved?.();
     } catch {
       setError("Não foi possível excluir o abono.");
     } finally {
@@ -94,16 +108,20 @@ export default function AbsenceExemptionModal({ employeeId, employeeName }: Abse
 
   return (
     <>
+      <ConfirmModal isOpen={!!deleteId} title="Excluir abono e anexo"
+        message="O período deixará de ser abonado e o anexo será excluído. Deseja continuar?"
+        onClose={() => setDeleteId(null)} onConfirm={() => { if (deleteId) handleDelete(deleteId); setDeleteId(null); }} />
       <button
-        onClick={() => setIsOpen(true)}
+        disabled={disabled}
+        onClick={() => { setStartDate(initialDate ?? ''); setEndDate(initialDate ?? ''); setReason(initialDate ? 'Atestado médico' : ''); setIsOpen(true); }}
         className="text-orange-600 hover:text-orange-800 hover:bg-orange-50 p-2 rounded-lg transition-colors"
-        title="Abonos e Afastamentos (INSS/Atestados)"
+        title={initialDate ? `Anexar atestado ou abonar ${initialDate}` : "Abonos e Afastamentos (INSS/Atestados)"}
       >
         <CalendarRange className="h-5 w-5" />
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             
             {/* Header */}
@@ -117,6 +135,7 @@ export default function AbsenceExemptionModal({ employeeId, employeeName }: Abse
               </div>
               <button
                 onClick={() => setIsOpen(false)}
+                disabled={isSubmitting || !!deletingId}
                 className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <X className="h-5 w-5" />
@@ -142,6 +161,7 @@ export default function AbsenceExemptionModal({ employeeId, employeeName }: Abse
                     <label className="text-xs font-semibold text-gray-500 uppercase">Data de Início</label>
                     <input
                       type="date"
+                    disabled={isSubmitting}
                       value={startDate}
                       onChange={e => setStartDate(e.target.value)}
                       className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm outline-none focus:ring-2 focus:ring-blue-500"
@@ -172,13 +192,19 @@ export default function AbsenceExemptionModal({ employeeId, employeeName }: Abse
                   />
                 </div>
 
+                <label className="text-sm font-semibold text-gray-700 flex flex-col gap-2">
+                  Anexo do atestado (opcional)
+                  <input key={fileKey} type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={isSubmitting}
+                    onChange={e => setFile(e.target.files?.[0] ?? null)} className="text-sm font-normal" />
+                  <span className="text-xs font-normal text-gray-500">PDF, JPG ou PNG, até 5 MB. Salvar este formulário abona o período informado.</span>
+                </label>
                 <button
                   type="submit"
                   disabled={isSubmitting}
                   className="bg-orange-500 hover:bg-orange-600 text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm self-end disabled:opacity-50"
                 >
                   {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  Lançar Período
+                  Salvar e abonar período
                 </button>
               </form>
 
@@ -205,9 +231,10 @@ export default function AbsenceExemptionModal({ employeeId, employeeName }: Abse
                           <span className="text-xs text-gray-500 mt-1 font-medium">
                             Período: {formatDate(ex.startDate)} até {formatDate(ex.endDate)}
                           </span>
+                          {ex.attachmentName && <a className="text-xs text-blue-700 underline mt-1" href={`/api/atestados/${ex.id}`}>Baixar {ex.attachmentName}</a>}
                         </div>
                         <button
-                          onClick={() => handleDelete(ex.id)}
+                          onClick={() => setDeleteId(ex.id)}
                           disabled={deletingId === ex.id}
                           className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors disabled:opacity-50"
                           title="Excluir período de abono"

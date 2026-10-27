@@ -120,7 +120,7 @@ export default function PayrollClient() {
   const { data: session } = useSession();
   const isAdminOrManager = (session?.user as any)?.role === "ADMIN" || (session?.user as any)?.role === "MANAGER";
 
-  const canEdit = isAdminOrManager || (sheetStatus.status === "EM_DIGITACAO");
+  const canEdit = sheetStatus.status === "EM_DIGITACAO";
 
   useEffect(() => { loadData(); }, [month, year]);
 
@@ -188,7 +188,7 @@ export default function PayrollClient() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await saveAllMonthlyPayrolls(rows.map(r => ({
+      await saveAllMonthlyPayrolls(rows.filter(r => !r.isPaid).map(r => ({
         id: r.id,
         baseValue: Number(r.baseValue) || 0,
         extras: Number(r.extras) || 0,
@@ -196,6 +196,7 @@ export default function PayrollClient() {
         discounts: Number(r.discounts) || 0,
         observations: r.observations || "",
       })));
+      await loadData();
       setSavedAt(new Date().toLocaleTimeString("pt-BR"));
       setHasChanges(false);
     } catch {
@@ -791,8 +792,8 @@ export default function PayrollClient() {
         <div className="flex items-center gap-3 flex-nowrap shrink-0">
           <button
             onClick={handleGenerate}
-            disabled={isGenerating || isLoading || !canEdit}
-            title="Adiciona à folha funcionários que foram cadastrados após a geração da prévia. Não sobrescreve dados já editados."
+            disabled={isGenerating || isLoading || !canEdit || hasChanges || isSaving}
+            title="Recalcula base e VT dos registros não pagos. Preserva ajustes extras e descontos."
             className="flex items-center gap-2 border border-dashed border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 shrink-0 whitespace-nowrap"
           >
             {isGenerating ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <RefreshCw className="h-4 w-4 shrink-0" />}

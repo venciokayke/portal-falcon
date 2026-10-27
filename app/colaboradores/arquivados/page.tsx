@@ -1,3 +1,4 @@
+import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import ArchivedEmployeesList from "./components/ArchivedEmployeesList";
 import { ArchiveRestore, Users } from "lucide-react";
@@ -6,6 +7,7 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function ColaboradoresArquivadosPage() {
+  await requirePermission("MANAGE_EMPLOYEES");
   const employees = await prisma.employee.findMany({
     where: { isActive: false },
     orderBy: { name: "asc" },

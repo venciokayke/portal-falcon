@@ -1,24 +1,13 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { requireUser, requirePermission } from "@/lib/auth";
+import { writeActivityLog } from "@/lib/activity-log";
 
 export async function logActivity(action: string, details?: string) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return; // Silent return if no user
-
-    const userId = (session.user as any).id;
-    if (!userId) return;
-
-    await prisma.activityLog.create({
-      data: {
-        userId,
-        action,
-        details,
-      },
-    });
+    const user = await requireUser();
+    await writeActivityLog(user.id, action, details);
   } catch (error) {
     console.error("Failed to log activity:", error);
     // Non-blocking
@@ -26,15 +15,8 @@ export async function logActivity(action: string, details?: string) {
 }
 
 export async function getActivityLogs(page = 1, limit = 50) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) throw new Error("Não autenticado.");
-
-  const isAdmin = (session.user as any).role === "ADMIN";
-  const permissions = (session.user as any).permissions || [];
-  
-  if (!isAdmin && !permissions.includes("VIEW_AUDIT")) {
-    throw new Error("Acesso negado.");
-  }
+  await requirePermission("VIEW_AUDIT");
+  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error("Paginação inválida.");
 
   const skip = (page - 1) * limit;
 
